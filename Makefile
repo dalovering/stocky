@@ -53,6 +53,22 @@ logs: ## Tail logs from all services
 ps: ## Show running services
 	$(COMPOSE) ps
 
+.PHONY: db
+db: ## Start only Postgres 18 (for local `make dev`) and wait until it's ready
+	$(COMPOSE) up -d db
+	@echo "Waiting for Postgres to be healthy..."
+	@tries=0; \
+	until [ "$$(docker inspect -f '{{.State.Health.Status}}' "$$($(COMPOSE) ps -q db)" 2>/dev/null)" = "healthy" ]; do \
+		tries=$$((tries+1)); \
+		if [ $$tries -ge 60 ]; then echo "Postgres did not become healthy in time." >&2; exit 1; fi; \
+		sleep 1; \
+	done
+	@echo "Postgres is ready on $${POSTGRES_HOST:-localhost}:$${POSTGRES_PORT:-5432}."
+
+.PHONY: db-down
+db-down: ## Stop the Postgres container used by `make dev`
+	$(COMPOSE) stop db
+
 # ---------------------------------------------------------------------------
 # Database / migrations (Alembic, via uv)
 # ---------------------------------------------------------------------------
@@ -87,7 +103,7 @@ install-frontend: ## Install frontend deps with npm
 	cd $(FRONTEND) && npm install
 
 .PHONY: dev
-dev: ## Run backend (uv) and frontend (npm) locally in parallel
+dev: db migrate ## Run backend (uv) and frontend (npm) locally in parallel (starts Postgres first)
 	@echo "Starting backend (:8000) and frontend (:3000). Ctrl-C to stop both."
 	@trap 'kill 0' INT TERM; \
 	( cd $(BACKEND) && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 ) & \
@@ -95,7 +111,7 @@ dev: ## Run backend (uv) and frontend (npm) locally in parallel
 	wait
 
 .PHONY: dev-backend
-dev-backend: ## Run only the backend locally (uv)
+dev-backend: db migrate ## Run only the backend locally (uv), starting Postgres first
 	cd $(BACKEND) && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 .PHONY: dev-frontend
