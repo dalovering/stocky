@@ -1,0 +1,1 @@
+"""Stocky backend application package."""
