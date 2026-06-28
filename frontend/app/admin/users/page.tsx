@@ -20,6 +20,7 @@ import {
 import { Cross2Icon, PlusIcon } from "@radix-ui/react-icons";
 
 import { BarcodeLabelDialog } from "@/components/BarcodeLabelDialog";
+import { Field } from "@/components/Field";
 import { HistoryList } from "@/components/HistoryList";
 import { api } from "@/lib/api";
 import type { Group, GroupTree, ItemEvent, UserDetail, UserRead } from "@/lib/types";
@@ -324,12 +325,10 @@ function UserDialog({
       <Dialog.Content maxWidth="440px">
         <Dialog.Title>{isEdit ? "Edit user" : "Add user"}</Dialog.Title>
         <Flex direction="column" gap="3" mt="2">
-          <label>
-            <Text size="2">Name</Text>
+          <Field label="Name">
             <TextField.Root value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-          </label>
-          <label>
-            <Text size="2">Group</Text>
+          </Field>
+          <Field label="Group">
             <Select.Root
               value={groupId ?? "none"}
               onValueChange={(v) => setGroupId(v === "none" ? null : v)}
@@ -344,15 +343,14 @@ function UserDialog({
                 ))}
               </Select.Content>
             </Select.Root>
-          </label>
-          <label>
-            <Text size="2">Barcode {isEdit ? "" : "(blank = auto-generate)"}</Text>
+          </Field>
+          <Field label="Barcode" hint={isEdit ? undefined : "(blank = auto-generate)"}>
             <TextField.Root
               value={barcode}
               onChange={(e) => setBarcode(e.target.value)}
               placeholder="Scan or type to register an existing card"
             />
-          </label>
+          </Field>
         </Flex>
         <Flex gap="3" mt="4" justify="end">
           <Button variant="soft" color="gray" onClick={onClose}>

@@ -21,12 +21,23 @@ import {
 import { Cross2Icon, PlusIcon } from "@radix-ui/react-icons";
 
 import { BarcodeLabelDialog } from "@/components/BarcodeLabelDialog";
+import { Field, isModified } from "@/components/Field";
 import { HistoryList, StatusBadge } from "@/components/HistoryList";
 import { PassiveSelect } from "@/components/PassiveSelect";
 import { api } from "@/lib/api";
 import type { Item, ItemEvent, ItemType } from "@/lib/types";
 
 const ADD_NEW_TYPE = "__add_new_type__";
+
+// Client-side item barcode, matching the backend format (`I` + 10 digits, see
+// backend/app/services/barcode.py). Pre-filled when opening the new-item modal so the admin
+// has a value to print right away; the backend still guarantees uniqueness on save and falls
+// back to generating one if the field is cleared.
+function generateItemBarcode(): string {
+  let digits = "";
+  for (let i = 0; i < 10; i++) digits += Math.floor(Math.random() * 10);
+  return `I${digits}`;
+}
 
 export default function InventoryAdminPage() {
   const [tab, setTab] = useState<"items" | "types">("items");
@@ -259,10 +270,10 @@ function ItemTypeDialog({
             />
           </Field>
           <Grid columns="2" gap="3">
-            <Field label="Author (optional)">
+            <Field label="Author" hint="(optional)">
               <TextField.Root value={form.author} onChange={(e) => set("author", e.target.value)} />
             </Field>
-            <Field label="Publish date (optional)">
+            <Field label="Publish date" hint="(optional)">
               <TextField.Root
                 type="date"
                 value={form.publish_date}
@@ -327,6 +338,8 @@ function ItemDialog({
   onAddType: () => void;
 }) {
   const isEdit = Boolean(item.id);
+  // Barcode is generated once for new items so it's visible/printable; editing keeps the existing one.
+  const [initialBarcode] = useState(() => item.barcode ?? (isEdit ? "" : generateItemBarcode()));
   const [form, setForm] = useState({
     item_type_id: item.item_type_id ?? "",
     name: item.name ?? "",
@@ -335,14 +348,68 @@ function ItemDialog({
     purchase_price: item.purchase_price ?? "",
     purchase_date: item.purchase_date ?? "",
     description: item.description ?? "",
-    barcode: item.barcode ?? "",
+    barcode: initialBarcode,
   });
   const [busy, setBusy] = useState(false);
+  // Whether the admin has overridden the auto-filled name / description. Until then we keep them in
+  // sync with the selected type so picking a type fills sensible, overridable defaults.
+  const [nameTouched, setNameTouched] = useState(isEdit || Boolean(item.name));
+  const [descTouched, setDescTouched] = useState(isEdit || Boolean(item.description));
   const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Only fields with a *program-derived* default get change-tracking, and only for new items:
+  //   • name        → "{type name} {existing count + 1}"
+  //   • description  → the selected type's description (blank if none)
+  //   • barcode      → the generated value
+  // Free-text / blank / constant fields (type, location, condition, price, date) have no logical
+  // default, so they aren't tracked. The name/description defaults only become meaningful once a
+  // type is picked; until then they mirror the current value so nothing reads as "changed".
+  const selectedType = types.find((t) => t.id === form.item_type_id);
+  const defaults = isEdit
+    ? null
+    : {
+        name: selectedType ? `${selectedType.name} ${selectedType.item_count + 1}` : form.name,
+        description: selectedType ? (selectedType.description ?? "") : form.description,
+        barcode: initialBarcode,
+      };
+
+  // Choosing a type: open the new-type form for the sentinel, otherwise select it and (unless the
+  // admin has overridden them) fill the name and description defaults from that type.
+  function selectType(typeId: string) {
+    const t = types.find((x) => x.id === typeId);
+    setForm((f) => ({
+      ...f,
+      item_type_id: typeId,
+      name: !nameTouched && t ? `${t.name} ${t.item_count + 1}` : f.name,
+      description: !descTouched && t ? (t.description ?? "") : f.description,
+    }));
+  }
+
+  function editName(value: string) {
+    setNameTouched(true);
+    set("name", value);
+  }
+
+  function editDescription(value: string) {
+    setDescTouched(true);
+    set("description", value);
+  }
+
+  // Restore a tracked field to its default, re-enabling the type-driven auto-fill for name/description.
+  function reset(key: "name" | "description" | "barcode") {
+    if (!defaults) return;
+    if (key === "name") setNameTouched(false);
+    if (key === "description") setDescTouched(false);
+    set(key, defaults[key]);
+  }
 
   async function save() {
     setBusy(true);
     try {
+      // When the description still matches the type's (the untouched default), store null so the
+      // item keeps inheriting from the type rather than freezing a denormalized copy.
+      const description =
+        defaults && form.description === defaults.description ? null : form.description || null;
       const payload = {
         item_type_id: form.item_type_id,
         name: form.name,
@@ -350,7 +417,7 @@ function ItemDialog({
         condition: form.condition,
         purchase_price: form.purchase_price === "" ? null : form.purchase_price,
         purchase_date: form.purchase_date || null,
-        description: form.description || null,
+        description,
       };
       if (isEdit) {
         await api.updateItem(item.id!, payload);
@@ -372,7 +439,7 @@ function ItemDialog({
             {/* Passive creation: choosing "+ Add new type…" opens the item-type form. */}
             <Select.Root
               value={form.item_type_id || undefined}
-              onValueChange={(v) => (v === ADD_NEW_TYPE ? onAddType() : set("item_type_id", v))}
+              onValueChange={(v) => (v === ADD_NEW_TYPE ? onAddType() : selectType(v))}
             >
               <Select.Trigger style={{ width: "100%" }} placeholder="Select a type…" />
               <Select.Content>
@@ -386,10 +453,14 @@ function ItemDialog({
               </Select.Content>
             </Select.Root>
           </Field>
-          <Field label="Name">
+          <Field
+            label="Name"
+            modified={!!defaults && isModified(form.name, defaults.name)}
+            onReset={() => reset("name")}
+          >
             <TextField.Root
               value={form.name}
-              onChange={(e) => set("name", e.target.value)}
+              onChange={(e) => editName(e.target.value)}
               placeholder="e.g. Calculator #3"
             />
           </Field>
@@ -430,14 +501,24 @@ function ItemDialog({
               />
             </Field>
           </Grid>
-          <Field label="Description (defaults to type)">
+          <Field
+            label="Description"
+            hint="(defaults to type)"
+            modified={!!defaults && isModified(form.description, defaults.description)}
+            onReset={() => reset("description")}
+          >
             <TextArea
               value={form.description}
-              onChange={(e) => set("description", e.target.value)}
+              onChange={(e) => editDescription(e.target.value)}
             />
           </Field>
           {!isEdit && (
-            <Field label="Barcode (blank = auto-generate)">
+            <Field
+              label="Barcode"
+              hint="(blank = auto-generate)"
+              modified={!!defaults && isModified(form.barcode, defaults.barcode)}
+              onReset={() => reset("barcode")}
+            >
               <TextField.Root
                 value={form.barcode}
                 onChange={(e) => set("barcode", e.target.value)}
@@ -534,17 +615,6 @@ function ItemDetailDialog({
         />
       </Dialog.Content>
     </Dialog.Root>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label>
-      <Text size="2" as="div" mb="1">
-        {label}
-      </Text>
-      {children}
-    </label>
   );
 }
 
