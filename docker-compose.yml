@@ -10,7 +10,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stocky_dev_password}
       POSTGRES_DB: ${POSTGRES_DB:-stocky}
     volumes:
-      - stocky_pgdata:/var/lib/postgresql/data
+      # Postgres 18+ images store data in a major-version subdirectory under
+      # /var/lib/postgresql (NOT .../data). Mounting the parent is the documented 18+
+      # layout and keeps pg_upgrade --link working. Do not revert to .../data.
+      - stocky_pgdata:/var/lib/postgresql
     ports:
       - "5432:5432"
     healthcheck:
@@ -26,7 +29,12 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-stocky}:${POSTGRES_PASSWORD:-stocky_dev_password}@db:5432/${POSTGRES_DB:-stocky}
+      # Same credential components as the db service; HOST points at the db container.
+      POSTGRES_USER: ${POSTGRES_USER:-stocky}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stocky_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-stocky}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me}
       JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-string}
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-480}

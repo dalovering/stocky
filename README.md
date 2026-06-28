@@ -29,7 +29,7 @@ engineering rules.
 ## Quick start
 
 ```bash
-cp .env.example .env          # set ADMIN_PASSWORD and JWT_SECRET
+make init-env                 # generate .env with random secrets (prints the admin password)
 make run                      # start postgres 18 + backend + frontend
 make seed                     # load demo data (optional)
 ```

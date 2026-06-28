@@ -22,6 +22,10 @@ help: ## Show this help
 # ---------------------------------------------------------------------------
 # Docker-compose (deployment / full stack)
 # ---------------------------------------------------------------------------
+.PHONY: init-env
+init-env: ## Generate a local .env with openssl-random secrets (won't overwrite existing)
+	./scripts/gen-env.sh
+
 .PHONY: build
 build: ## Build all docker images
 	$(COMPOSE) build
