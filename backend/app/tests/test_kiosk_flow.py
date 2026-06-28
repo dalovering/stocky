@@ -95,9 +95,7 @@ async def test_item_held_by_other_opens_modal(admin_client, fixtures):
 @pytest.mark.asyncio
 async def test_report_loss_sets_status(admin_client, fixtures):
     item = fixtures["item"]
-    resp = (
-        await admin_client.post("/api/kiosk/report-loss", json={"item_id": item["id"]})
-    ).json()
+    resp = (await admin_client.post("/api/kiosk/report-loss", json={"item_id": item["id"]})).json()
     assert resp["status"] == "Lost"
     assert resp["condition"] == "Lost"
 

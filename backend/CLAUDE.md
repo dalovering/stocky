@@ -56,8 +56,10 @@ alembic/               # migrations (env.py wires the async engine + SQLModel me
 
 ## Testing & lint
 
-- `uv run pytest` — tests run against in-memory SQLite (fast, no Postgres needed). Models use
-  cross-dialect types so this is safe; if you add a Postgres-only type, gate the test accordingly.
+- `uv run pytest` — tests run against a **real `postgres:18` container** (testcontainers), never
+  SQLite. A Docker daemon must be running. The schema is created/dropped per test for isolation, so
+  the exact production types (tz-aware timestamps, JSON, UUID) and queries are validated. Never swap
+  in SQLite or a mocked DB to "make tests faster" — see golden rule #8 in the root CLAUDE.md.
 - `uv run ruff check .` and `uv run ruff format .` — lint and format. FastAPI's `Depends`/`Cookie`
   defaults are whitelisted for bugbear B008.
 - Add or update a test when you change behavior (a new loan rule, a new endpoint).

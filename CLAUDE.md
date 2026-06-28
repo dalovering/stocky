@@ -24,6 +24,14 @@ These come straight from the spec. They are non-negotiable.
    drives deployment. Add new operational commands as Makefile targets, not ad-hoc scripts.
 7. **Keep it Pi-4 lightweight.** Prefer small images, avoid heavy native deps, don't add a service
    unless it earns its keep.
+8. **Always use the real architecture — never fakes.** No SQLite (not even for tests), no mocked
+   databases, no stubbed API layers, no hardcoded/placeholder/embedded sample data baked into the
+   frontend, no "TODO: wire this up later" shortcuts standing in for real behavior. Everything runs
+   against the genuine stack: **PostgreSQL 18**, the real FastAPI endpoints, and the real Next.js
+   data flow. Tests spin up a real `postgres:18` container (testcontainers) so the schema, types,
+   and queries are validated exactly as in production. If you ever feel tempted to substitute a
+   lighter fake to make something pass, stop — a fake that hides a real-stack bug (as SQLite once
+   hid a timezone-type bug here) is worse than no test.
 
 If a task seems to require breaking one of these, stop and ask the user instead.
 
@@ -49,7 +57,7 @@ conventions in a subtree, update that subtree's CLAUDE.md in the same commit.
 ## How to run
 
 ```bash
-cp .env.example .env        # then edit ADMIN_PASSWORD / secrets
+make init-env               # generate .env with openssl-random secrets (prints admin password)
 make run                    # docker-compose up: postgres 18 + backend + frontend
 make migrate                # apply DB migrations
 make seed                   # load demo data so the kiosk works immediately

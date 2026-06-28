@@ -22,8 +22,10 @@ async def _seed() -> None:
     async with async_session_maker() as session:
         existing = await session.scalar(select(func.count()).select_from(User))
         if existing and os.getenv("STOCKY_SEED_FORCE") != "1":
-            print(f"Database already has {existing} users; skipping seed "
-                  "(set STOCKY_SEED_FORCE=1 to override).")
+            print(
+                f"Database already has {existing} users; skipping seed "
+                "(set STOCKY_SEED_FORCE=1 to override)."
+            )
             return
 
         # Groups (nested): School > Room 12 ; School > Room 14
@@ -65,14 +67,34 @@ async def _seed() -> None:
 
         # Items
         items = [
-            Item(item_type_id=calculator.id, name="Calculator #1", location="Cabinet A",
-                 condition=Condition.NEW, barcode=barcode_svc.generate_item_code()),
-            Item(item_type_id=calculator.id, name="Calculator #2", location="Cabinet A",
-                 condition=Condition.USED, barcode=barcode_svc.generate_item_code()),
-            Item(item_type_id=novel.id, name="Mockingbird Copy 1", location="Shelf 3",
-                 condition=Condition.USED, barcode=barcode_svc.generate_item_code()),
-            Item(item_type_id=novel.id, name="Mockingbird Copy 2", location="Shelf 3",
-                 condition=Condition.NEW, barcode=barcode_svc.generate_item_code()),
+            Item(
+                item_type_id=calculator.id,
+                name="Calculator #1",
+                location="Cabinet A",
+                condition=Condition.NEW,
+                barcode=barcode_svc.generate_item_code(),
+            ),
+            Item(
+                item_type_id=calculator.id,
+                name="Calculator #2",
+                location="Cabinet A",
+                condition=Condition.USED,
+                barcode=barcode_svc.generate_item_code(),
+            ),
+            Item(
+                item_type_id=novel.id,
+                name="Mockingbird Copy 1",
+                location="Shelf 3",
+                condition=Condition.USED,
+                barcode=barcode_svc.generate_item_code(),
+            ),
+            Item(
+                item_type_id=novel.id,
+                name="Mockingbird Copy 2",
+                location="Shelf 3",
+                condition=Condition.NEW,
+                barcode=barcode_svc.generate_item_code(),
+            ),
         ]
         session.add_all(items)
         await session.flush()

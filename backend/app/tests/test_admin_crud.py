@@ -20,9 +20,7 @@ async def test_group_and_user_crud(admin_client):
 
     # Create a user; barcode is auto-generated.
     user = (
-        await admin_client.post(
-            "/api/admin/users", json={"name": "Ada", "group_id": child["id"]}
-        )
+        await admin_client.post("/api/admin/users", json={"name": "Ada", "group_id": child["id"]})
     ).json()
     assert user["barcode"]
     assert user["group_name"] == "Room 1"
