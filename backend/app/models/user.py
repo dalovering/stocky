@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlmodel import Field, SQLModel
+
+from app.models.common import timestamp_column, utcnow
 
 
 class User(SQLModel, table=True):
@@ -17,4 +19,4 @@ class User(SQLModel, table=True):
     group_id: uuid.UUID | None = Field(default=None, foreign_key="groups.id", index=True)
     # Barcode encoded on the user's ID card. Unique so a scan resolves to one user.
     barcode: str = Field(index=True, unique=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=utcnow, sa_column=timestamp_column())

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlmodel import Field, SQLModel
 
+from app.models.common import timestamp_column, utcnow
 from app.models.enums import Condition
 
 
@@ -26,4 +27,4 @@ class Item(SQLModel, table=True):
     condition: Condition = Field(default=Condition.NEW)
     # Barcode on the physical item / its printed tag. Unique so a scan resolves to one item.
     barcode: str = Field(index=True, unique=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=utcnow, sa_column=timestamp_column())

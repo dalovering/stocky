@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlmodel import Field, SQLModel
 
+from app.models.common import timestamp_column, utcnow
 from app.models.enums import EventType
 
 
@@ -19,4 +20,4 @@ class Event(SQLModel, table=True):
     user_id: uuid.UUID | None = Field(default=None, foreign_key="users.id", index=True)
     event_type: EventType = Field(index=True)
     note: str | None = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), index=True)
+    created_at: datetime = Field(default_factory=utcnow, sa_column=timestamp_column(index=True))
