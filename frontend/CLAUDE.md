@@ -39,6 +39,9 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
 - ID cards and item tags print via `components/BarcodeLabelDialog.tsx`. The `.print-area` /
   `.no-print` classes in `globals.css` control what appears on paper. Barcodes are SVGs served by
   the backend (`/api/admin/users/{id}/barcode.svg`, `/api/admin/items/{id}/barcode.svg`).
+- The admin header's **"Barcode labels (PDF)"** button downloads one PDF with every user and item
+  barcode in two sections. It fetches `/api/admin/labels.pdf` via `api.labelsPdf()` (a Blob — use
+  `requestBlob`, not `request`, for binary responses) and triggers a client-side download.
 
 ## Testing & lint
 

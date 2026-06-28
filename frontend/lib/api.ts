@@ -43,6 +43,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+async function requestBlob(path: string): Promise<Blob> {
+  const res = await fetch(`${BASE}${path}`, { credentials: "include" });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      detail = (await res.json()).detail ?? detail;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, detail);
+  }
+  return res.blob();
+}
+
 const get = <T>(p: string) => request<T>(p);
 const post = <T>(p: string, body?: unknown) =>
   request<T>(p, { method: "POST", body: body ? JSON.stringify(body) : undefined });
@@ -93,6 +107,9 @@ export const api = {
   itemBarcodeSvg: (id: string) => `${BASE}/api/admin/items/${id}/barcode.svg`,
   locations: () => get<string[]>("/api/admin/locations"),
   manufacturers: () => get<string[]>("/api/admin/manufacturers"),
+
+  // ---- Admin: barcode-label sheet (PDF of every user + item barcode) ----
+  labelsPdf: () => requestBlob("/api/admin/labels.pdf"),
 
   // ---- Kiosk ----
   scan: (barcode: string, active_user_id?: string | null) =>
