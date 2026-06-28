@@ -1,0 +1,36 @@
+/* Minimal global styles — Radix Themes handles component styling. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* Make tabular data and clickable rows feel right. */
+.clickable {
+  cursor: pointer;
+}
+
+/* Print styles: only the element marked .print-area shows when printing (ID cards, tags). */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
