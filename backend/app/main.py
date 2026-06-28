@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin_inventory, admin_users, auth, inventory, kiosk
+from app.api import admin_inventory, admin_users, auth, inventory, kiosk, labels
 from app.core.config import settings
 
 app = FastAPI(
@@ -27,6 +27,7 @@ app.include_router(admin_users.router)
 app.include_router(admin_inventory.router)
 app.include_router(kiosk.router)
 app.include_router(inventory.router)
+app.include_router(labels.router)
 
 
 @app.get("/health", tags=["meta"])

@@ -20,7 +20,7 @@ app/
 ├── core/              # config (pydantic-settings), db engine/session, security (admin JWT)
 ├── models/            # SQLModel tables + enums (the DB schema)
 ├── schemas/           # Pydantic request/response models (decoupled from tables)
-├── services/          # business logic: status derivation, loan events, barcodes, serializers
+├── services/          # business logic: status derivation, loan events, barcodes, label PDFs, serializers
 ├── api/               # routers: auth, admin_users, admin_inventory, kiosk, inventory + deps
 ├── seed.py            # demo data (`make seed`)
 └── tests/             # pytest (SQLite in-memory)
