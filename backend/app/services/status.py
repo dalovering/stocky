@@ -9,6 +9,7 @@ agree on what "on loan" means.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,8 +20,8 @@ from app.models import Condition, Event, EventType, Item, ItemStatus
 _LOAN_CLOSING = {EventType.CHECKIN, EventType.LOSS_REPORT, EventType.DISCARD}
 
 
-async def latest_checkout_holder(session: AsyncSession, item_id: uuid.UUID) -> uuid.UUID | None:
-    """Return the user_id currently holding the item, or None if it isn't on loan.
+async def open_checkout_event(session: AsyncSession, item_id: uuid.UUID) -> Event | None:
+    """Return the CHECKOUT event for the item's current open loan, or None if it isn't on loan.
 
     An item is on loan when its most recent loan-relevant event is a CHECKOUT.
     """
@@ -35,8 +36,20 @@ async def latest_checkout_holder(session: AsyncSession, item_id: uuid.UUID) -> u
     )
     last = result.scalar_one_or_none()
     if last is not None and last.event_type == EventType.CHECKOUT:
-        return last.user_id
+        return last
     return None
+
+
+async def latest_checkout_holder(session: AsyncSession, item_id: uuid.UUID) -> uuid.UUID | None:
+    """Return the user_id currently holding the item, or None if it isn't on loan."""
+    event = await open_checkout_event(session, item_id)
+    return event.user_id if event is not None else None
+
+
+async def checkout_started_at(session: AsyncSession, item_id: uuid.UUID) -> datetime | None:
+    """When the item's current open loan began, or None if it isn't on loan."""
+    event = await open_checkout_event(session, item_id)
+    return event.created_at if event is not None else None
 
 
 async def item_status(session: AsyncSession, item: Item) -> tuple[ItemStatus, uuid.UUID | None]:

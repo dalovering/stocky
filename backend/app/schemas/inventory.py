@@ -100,6 +100,8 @@ class ItemRead(BaseModel):
     status: ItemStatus = ItemStatus.AVAILABLE
     holder_user_id: uuid.UUID | None = None
     holder_name: str | None = None
+    # When the current open loan began (only set while On loan).
+    checked_out_at: datetime | None = None
 
 
 class EventRead(BaseModel):
@@ -107,6 +109,7 @@ class EventRead(BaseModel):
 
     id: uuid.UUID
     item_id: uuid.UUID
+    item_name: str | None = None
     user_id: uuid.UUID | None
     user_name: str | None = None
     event_type: EventType

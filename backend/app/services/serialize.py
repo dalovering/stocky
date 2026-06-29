@@ -15,16 +15,18 @@ from app.models.enums import EventType
 from app.models.event import Event
 from app.schemas.inventory import EventRead, ItemRead
 from app.schemas.user import UserDetail
-from app.services.status import item_status, user_loan_item_ids
+from app.services.status import checkout_started_at, item_status, user_loan_item_ids
 
 
 async def serialize_item(session: AsyncSession, item: Item) -> ItemRead:
     item_type = await session.get(ItemType, item.item_type_id)
     status, holder_id = await item_status(session, item)
     holder_name = None
+    checked_out_at = None
     if holder_id is not None:
         holder = await session.get(User, holder_id)
         holder_name = holder.name if holder else None
+        checked_out_at = await checkout_started_at(session, item.id)
 
     return ItemRead(
         id=item.id,
@@ -42,6 +44,7 @@ async def serialize_item(session: AsyncSession, item: Item) -> ItemRead:
         status=status,
         holder_user_id=holder_id,
         holder_name=holder_name,
+        checked_out_at=checked_out_at,
     )
 
 
@@ -76,9 +79,11 @@ async def serialize_event(session: AsyncSession, event: Event) -> EventRead:
     if event.user_id is not None:
         user = await session.get(User, event.user_id)
         user_name = user.name if user else None
+    item = await session.get(Item, event.item_id)
     return EventRead(
         id=event.id,
         item_id=event.item_id,
+        item_name=item.name if item else None,
         user_id=event.user_id,
         user_name=user_name,
         event_type=event.event_type,

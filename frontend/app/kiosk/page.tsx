@@ -24,6 +24,17 @@ import type { Item, ItemEvent, UserDetail } from "@/lib/types";
 // Auto-logout after this many ms of inactivity at the kiosk.
 const IDLE_MS = 60_000;
 
+/** A rough "how long ago" label for a checkout timestamp (e.g. "3 days", "2 hours"). */
+function loanDuration(since: string): string {
+  const mins = Math.floor((Date.now() - new Date(since).getTime()) / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min${mins === 1 ? "" : "s"}`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"}`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
 type Toast = { kind: "info" | "error"; text: string } | null;
 
 /** A compact transient banner for scan results; sized to sit inline within a header row. */
@@ -238,12 +249,18 @@ function UserPanel({
         <Grid columns={{ initial: "1", sm: "2" }} gap="3">
           {user.current_loans.map((i) => (
             <Card key={i.id} className="clickable" onClick={() => onOpenItem(i)}>
-              <Flex justify="between" align="center">
+              <Flex justify="between" align="start" gap="2">
                 <Box>
                   <Heading size="3">{i.name}</Heading>
-                  <Text size="2" color="gray">
+                  <Text size="2" color="gray" as="div">
                     {i.item_type_name} {i.location ? `· ${i.location}` : ""}
                   </Text>
+                  {i.checked_out_at && (
+                    <Text size="1" color="gray" as="div" mt="1">
+                      On loan {loanDuration(i.checked_out_at)} · since{" "}
+                      {new Date(i.checked_out_at).toLocaleString()}
+                    </Text>
+                  )}
                 </Box>
                 <StatusBadge status={i.status} />
               </Flex>
@@ -261,7 +278,7 @@ function UserPanel({
         History
       </Heading>
       {/* Already sorted most-recent-first by the backend. */}
-      <HistoryList events={events} />
+      <HistoryList events={events} subject="user" />
     </Box>
   );
 }

@@ -627,7 +627,7 @@ function ItemDetailDialog({
         <Heading size="3" mb="2">
           History
         </Heading>
-        <HistoryList events={events} />
+        <HistoryList events={events} subject="item" />
 
         <BarcodeLabelDialog
           open={printOpen}

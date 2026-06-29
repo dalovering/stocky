@@ -122,3 +122,24 @@ async def test_kiosk_user_events_most_recent_first(admin_client, fixtures):
     # The check-in is the latest action, so it comes first.
     assert types == ["checkin", "checkout"]
     assert events[0]["created_at"] >= events[1]["created_at"]
+    # Each event names its item.
+    assert all(e["item_name"] == item["name"] for e in events)
+
+
+@pytest.mark.asyncio
+async def test_loan_item_reports_checkout_time(admin_client, fixtures):
+    """An on-loan item carries checked_out_at; it clears on check-in."""
+    user, item = fixtures["user"], fixtures["item"]
+    await admin_client.post(
+        "/api/kiosk/checkout", json={"item_id": item["id"], "user_id": user["id"]}
+    )
+
+    loan = (await admin_client.get(f"/api/kiosk/user/{user['id']}")).json()["current_loans"][0]
+    assert loan["checked_out_at"] is not None
+
+    await admin_client.post(
+        "/api/kiosk/checkin", json={"item_id": item["id"], "user_id": user["id"]}
+    )
+    item_after = (await admin_client.get(f"/api/inventory/items/{item['id']}")).json()
+    assert item_after["status"] == "Available"
+    assert item_after["checked_out_at"] is None

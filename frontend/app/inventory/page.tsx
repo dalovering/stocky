@@ -125,7 +125,7 @@ function ItemDetail({ item, onClose }: { item: Item; onClose: () => void }) {
         <Heading size="3" mb="2">
           History
         </Heading>
-        <HistoryList events={events} />
+        <HistoryList events={events} subject="item" />
       </Dialog.Content>
     </Dialog.Root>
   );

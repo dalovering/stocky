@@ -67,11 +67,13 @@ export interface Item {
   status: ItemStatus;
   holder_user_id: string | null;
   holder_name: string | null;
+  checked_out_at: string | null;
 }
 
 export interface ItemEvent {
   id: string;
   item_id: string;
+  item_name: string | null;
   user_id: string | null;
   user_name: string | null;
   event_type: EventType;
