@@ -88,7 +88,7 @@ export default function InventoryAdminPage() {
       return {
         id: t.id,
         title: t.name,
-        meta: `${rows.length} items`,
+        meta: `${rows.length} ${rows.length === 1 ? "item" : "items"}`,
         actions: [
           {
             icon: <PlusIcon />,

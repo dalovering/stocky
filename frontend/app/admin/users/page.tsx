@@ -15,6 +15,8 @@ import type { Group, GroupTree, ItemEvent, UserDetail, UserRead } from "@/lib/ty
 
 const UNGROUPED = "__ungrouped__";
 
+const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+
 type DeleteTarget = { kind: "user" | "group"; id: string; name: string };
 
 export default function UsersPage() {
@@ -70,7 +72,7 @@ export default function UsersPage() {
     const toNode = (node: GroupTree): GroupNode<UserRead> => ({
       id: node.id,
       title: node.name,
-      meta: `${rollup(node)} users`,
+      meta: plural(rollup(node), "user"),
       actions: [
         {
           icon: <PlusIcon />,
@@ -92,7 +94,7 @@ export default function UsersPage() {
     const nodes = tree.map(toNode);
     const ungrouped = usersByGroup.get(UNGROUPED) ?? [];
     if (ungrouped.length > 0) {
-      nodes.push({ id: UNGROUPED, title: "Ungrouped", meta: `${ungrouped.length} users`, rows: ungrouped, children: [] });
+      nodes.push({ id: UNGROUPED, title: "Ungrouped", meta: plural(ungrouped.length, "user"), rows: ungrouped, children: [] });
     }
     return nodes;
   }, [tree, usersByGroup]);

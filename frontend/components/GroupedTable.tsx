@@ -79,8 +79,12 @@ export function GroupedTable<T>({
   defaultExpanded?: boolean;
   empty?: ReactNode;
 }) {
-  const [expanded, setExpanded] = useState<Set<string>>(() =>
-    defaultExpanded ? collectIds(groups, new Set()) : new Set(),
+  // Track which groups are *collapsed* rather than expanded: groups load asynchronously, so a
+  // set of expanded ids built on first render (when `groups` is still empty) would leave
+  // everything collapsed. With a collapsed set, any group — including ones that arrive later — is
+  // open unless the user has explicitly collapsed it.
+  const [collapsed, setCollapsed] = useState<Set<string>>(() =>
+    defaultExpanded ? new Set() : collectIds(groups, new Set()),
   );
 
   // Whether any group anywhere defines actions (per-row actions add the same trailing column).
@@ -93,7 +97,7 @@ export function GroupedTable<T>({
   const totalColumns = columns.length + (hasActions ? 1 : 0);
 
   function toggle(id: string) {
-    setExpanded((prev) => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -110,7 +114,7 @@ export function GroupedTable<T>({
   }
 
   function renderGroup(node: GroupNode<T>, depth: number): ReactNode {
-    const isOpen = expanded.has(node.id);
+    const isOpen = !collapsed.has(node.id);
     return (
       <FragmentRow key={`g-${node.id}`}>
         <Table.Row style={{ background: "var(--gray-2)" }}>
