@@ -113,64 +113,26 @@ export function GroupedTable<T>({
     );
   }
 
-  function renderGroup(node: GroupNode<T>, depth: number): ReactNode {
-    const isOpen = !collapsed.has(node.id);
-    return (
-      <FragmentRow key={`g-${node.id}`}>
-        <Table.Row style={{ background: "var(--gray-2)" }}>
-          <Table.Cell colSpan={totalColumns}>
-            <Flex align="center" gap="2" style={{ paddingLeft: depth * 20 }}>
-              <IconButton
-                size="1"
-                variant="ghost"
-                color="gray"
-                aria-label={isOpen ? "Collapse" : "Expand"}
-                onClick={() => toggle(node.id)}
-              >
-                {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
-              </IconButton>
-              <Text weight="medium">{node.title}</Text>
-              {node.meta != null && (
-                <Text size="2" color="gray">
-                  {node.meta}
-                </Text>
-              )}
-              {node.actions && node.actions.length > 0 && (
-                <Box flexGrow="1">
-                  <ActionCluster actions={node.actions} />
-                </Box>
-              )}
-            </Flex>
-          </Table.Cell>
-        </Table.Row>
+  // Flatten the (visible) tree into one ordered list of rows. Emitting a single flat list of
+  // <Table.Row> children — rather than nested React fragments inside <tbody> — keeps the DOM a
+  // clean sequence of <tr>s, which browsers reconcile reliably when groups expand/collapse.
+  type Entry =
+    | { kind: "group"; key: string; node: GroupNode<T>; depth: number; open: boolean }
+    | { kind: "leaf"; key: string; row: T; depth: number };
 
-        {isOpen && (
-          <>
-            {node.children?.map((child) => renderGroup(child, depth + 1))}
-            {node.rows.map((row) => (
-              <Table.Row
-                key={`r-${rowKey(row)}`}
-                className={onRowClick ? "clickable" : undefined}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-              >
-                {columns.map((c, i) => (
-                  <Table.Cell
-                    key={i}
-                    style={i === 0 ? { paddingLeft: (depth + 1) * 20 + 8 } : undefined}
-                  >
-                    {c.cell(row)}
-                  </Table.Cell>
-                ))}
-                {hasActions && (
-                  <Table.Cell>{rowActions && <ActionCluster actions={rowActions(row)} />}</Table.Cell>
-                )}
-              </Table.Row>
-            ))}
-          </>
-        )}
-      </FragmentRow>
-    );
-  }
+  const entries: Entry[] = [];
+  const walk = (nodes: GroupNode<T>[], depth: number) => {
+    for (const node of nodes) {
+      const open = !collapsed.has(node.id);
+      entries.push({ kind: "group", key: `g-${node.id}`, node, depth, open });
+      if (!open) continue;
+      if (node.children) walk(node.children, depth + 1);
+      for (const row of node.rows) {
+        entries.push({ kind: "leaf", key: `r-${rowKey(row)}`, row, depth: depth + 1 });
+      }
+    }
+  };
+  walk(groups, 0);
 
   return (
     <Table.Root variant="surface">
@@ -182,12 +144,58 @@ export function GroupedTable<T>({
           {hasActions && <Table.ColumnHeaderCell aria-label="Actions" />}
         </Table.Row>
       </Table.Header>
-      <Table.Body>{groups.map((g) => renderGroup(g, 0))}</Table.Body>
+      <Table.Body>
+        {entries.map((e) =>
+          e.kind === "group" ? (
+            <Table.Row key={e.key} style={{ background: "var(--gray-2)" }}>
+              <Table.Cell colSpan={totalColumns}>
+                <Flex align="center" gap="2" style={{ paddingLeft: e.depth * 20 }}>
+                  <IconButton
+                    size="1"
+                    variant="ghost"
+                    color="gray"
+                    aria-label={e.open ? "Collapse" : "Expand"}
+                    onClick={() => toggle(e.node.id)}
+                  >
+                    {e.open ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                  </IconButton>
+                  <Text weight="medium">{e.node.title}</Text>
+                  {e.node.meta != null && (
+                    <Text size="2" color="gray">
+                      {e.node.meta}
+                    </Text>
+                  )}
+                  {e.node.actions && e.node.actions.length > 0 && (
+                    <Box flexGrow="1">
+                      <ActionCluster actions={e.node.actions} />
+                    </Box>
+                  )}
+                </Flex>
+              </Table.Cell>
+            </Table.Row>
+          ) : (
+            <Table.Row
+              key={e.key}
+              className={onRowClick ? "clickable" : undefined}
+              onClick={onRowClick ? () => onRowClick(e.row) : undefined}
+            >
+              {columns.map((c, i) => (
+                <Table.Cell
+                  key={i}
+                  style={i === 0 ? { paddingLeft: e.depth * 20 + 8 } : undefined}
+                >
+                  {c.cell(e.row)}
+                </Table.Cell>
+              ))}
+              {hasActions && (
+                <Table.Cell>
+                  {rowActions && <ActionCluster actions={rowActions(e.row)} />}
+                </Table.Cell>
+              )}
+            </Table.Row>
+          ),
+        )}
+      </Table.Body>
     </Table.Root>
   );
-}
-
-/** A keyed fragment so a group header and its descendant rows share one React key. */
-function FragmentRow({ children }: { key?: string; children: ReactNode }) {
-  return <>{children}</>;
 }
