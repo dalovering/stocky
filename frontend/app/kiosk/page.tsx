@@ -338,7 +338,11 @@ function ItemActionModal({
               {reporting === "loss" ? "Report this item lost" : "Report this item damaged"}
             </Text>
             <TextArea
-              placeholder="Add a note (optional) — e.g. screen cracked, left on the bus…"
+              placeholder={
+                reporting === "loss"
+                  ? "Add a note (optional) — e.g. left on the bus"
+                  : "Add a note (optional) — e.g. screen cracked, page torn"
+              }
               value={note}
               onChange={(e) => setNote(e.target.value)}
               autoFocus
