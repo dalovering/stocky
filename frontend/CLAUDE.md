@@ -20,18 +20,24 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
   props (`size`, `color`, `gap`, `mb`…) over custom CSS. Global CSS in `app/globals.css` is
   intentionally tiny (plus print styles); don't introduce a CSS framework.
 - **Shared UI primitives — use these, don't hand-roll.** To keep the app uniform:
-  - `components/DataTable.tsx` — the one list table (define `columns` + `rows`, optional row
-    click). Don't write raw `<table>` markup.
-  - `components/Dialogs.tsx` — `DialogHeader` (title + ✕), `DialogFooter` (Cancel/Save), and
-    `ConfirmButton` (a styled, scroll-locked confirm — never use native `window.confirm`).
-  - `components/PageShell.tsx` — `PublicShell` / `PageHeader` / `BackLink` give the public pages
-    (`/inventory`, `/kiosk`) one header + container, mirroring the admin shell in
-    `app/admin/layout.tsx`.
+  - `components/AppShell.tsx` — the single shell every page uses: a top bar (the "Stocky" brand +
+    optional `nav`/`actions` slots) over a centered container with a section header. Admin pages
+    pass `nav={<AdminNav/>}` + `actions={<LogoutButton/>}`; public pages pass a `BackLink` action.
+  - `components/DataTable.tsx` — the one flat list table (`columns` + `rows`, optional row click).
+    Don't write raw `<table>` markup.
+  - `components/GroupedTable.tsx` — the one grouped/nested table: `GroupNode<T>[]` (group headers
+    with optional nested `children` + leaf `rows`) reusing `DataTable`'s `Column<T>`. Per-row /
+    per-group `RowAction[]` render as icon buttons (view/edit/delete/add/print); omit them for a
+    read-only table. Used by the users-by-group, items-by-type, and public inventory views.
+  - `components/Dialogs.tsx` — `DialogHeader` (title + ✕), `DialogFooter` (Cancel/Save),
+    `ConfirmButton` (inline confirm) and `ConfirmDialog` (controlled confirm for table row deletes).
+    Never use native `window.confirm`.
 - **API access.** All backend calls go through the typed client in `lib/api.ts`; it sends cookies
   (`credentials: "include"`) for the admin session. Don't call `fetch` directly from components.
   Keep `lib/types.ts` in sync with the backend `app/schemas`.
-- **Auth.** `app/admin/layout.tsx` checks `api.authStatus()` and redirects to `/login` when not
-  authenticated. Kiosk and inventory are public.
+- **Auth.** `app/admin/layout.tsx` is a thin guard: it checks `api.authStatus()` and redirects to
+  `/login` when not authenticated (the shared chrome lives in `AppShell`, rendered per page). Kiosk
+  and inventory are public.
 
 ## The barcode scanner (key feature)
 
@@ -47,9 +53,9 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
 - ID cards and item tags print via `components/BarcodeLabelDialog.tsx`. The `.print-area` /
   `.no-print` classes in `globals.css` control what appears on paper. Barcodes are SVGs served by
   the backend (`/api/admin/users/{id}/barcode.svg`, `/api/admin/items/{id}/barcode.svg`).
-- The admin header's **"Barcode labels (PDF)"** button downloads one PDF with every user and item
-  barcode in two sections. It fetches `/api/admin/labels.pdf` via `api.labelsPdf()` (a Blob — use
-  `requestBlob`, not `request`, for binary responses) and triggers a client-side download.
+- The admin **Export data** page (`app/admin/export/page.tsx`) downloads one PDF with every user and
+  item barcode in two sections. It fetches `/api/admin/labels.pdf` via `api.labelsPdf()` (a Blob —
+  use `requestBlob`, not `request`, for binary responses) and triggers a client-side download.
 
 ## Testing & lint
 
