@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { Box, Card, Container, Flex, Heading, Text } from "@radix-ui/themes";
+import { Box, Card, Flex, Heading, Text } from "@radix-ui/themes";
+
+import { AppShell } from "@/components/AppShell";
 
 const VIEWS = [
   {
@@ -21,14 +23,11 @@ const VIEWS = [
 
 export default function Home() {
   return (
-    <Container size="2" p="6">
-      <Heading size="8" mb="1">
-        Stocky
-      </Heading>
-      <Text color="gray" size="3">
-        Classroom inventory management
+    <AppShell title="Welcome">
+      <Text color="gray" size="3" as="p">
+        Classroom inventory management. Choose a view to get started.
       </Text>
-      <Flex direction="column" gap="3" mt="5">
+      <Flex direction="column" gap="3" mt="4">
         {VIEWS.map((v) => (
           <Link key={v.href} href={v.href} style={{ textDecoration: "none" }}>
             <Card className="clickable" size="3">
@@ -40,6 +39,6 @@ export default function Home() {
           </Link>
         ))}
       </Flex>
-    </Container>
+    </AppShell>
   );
 }

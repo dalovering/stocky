@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button, Callout, Card, Container, Flex, Heading, TextField } from "@radix-ui/themes";
+import { Button, Callout, Card, Flex, Heading, TextField } from "@radix-ui/themes";
 
+import { AppShell } from "@/components/AppShell";
 import { api, ApiError } from "@/lib/api";
 
 export default function LoginPage() {
@@ -27,7 +28,7 @@ export default function LoginPage() {
   }
 
   return (
-    <Container size="1" p="6">
+    <AppShell containerSize="1">
       <Card size="4">
         <Heading size="6" mb="4">
           Admin login
@@ -52,6 +53,6 @@ export default function LoginPage() {
           </Flex>
         </form>
       </Card>
-    </Container>
+    </AppShell>
   );
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Dialog, Flex, Heading, Select, Separator, Text, TextField } from "@radix-ui/themes";
 
-import { AppShell, BackLink } from "@/components/AppShell";
+import { AppShell } from "@/components/AppShell";
 import { DialogHeader } from "@/components/Dialogs";
 import { GroupedTable, type GroupNode } from "@/components/GroupedTable";
 import { HistoryList, StatusBadge } from "@/components/HistoryList";
@@ -55,7 +55,7 @@ export default function InventoryPage() {
   }, [items]);
 
   return (
-    <AppShell title="Inventory" action={<BackLink href="/">Home</BackLink>}>
+    <AppShell title="Inventory">
       <Flex mb="3" gap="3" align="center" wrap="wrap">
         <TextField.Root
           placeholder="Search items…"

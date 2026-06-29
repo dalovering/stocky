@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Card, Flex, Heading, Text } from "@radix-ui/themes";
+import { Button, Card, Heading, Text } from "@radix-ui/themes";
 import { DownloadIcon } from "@radix-ui/react-icons";
 
-import { AdminNav, AppShell, LogoutButton } from "@/components/AppShell";
+import { AppShell } from "@/components/AppShell";
 import { api } from "@/lib/api";
 
 export default function ExportPage() {
@@ -27,7 +27,7 @@ export default function ExportPage() {
   }
 
   return (
-    <AppShell nav={<AdminNav />} actions={<LogoutButton />} title="Export data">
+    <AppShell title="Export data">
       <Card>
         <Heading size="3">Barcode labels (PDF)</Heading>
         <Text as="p" size="2" color="gray" mt="1">

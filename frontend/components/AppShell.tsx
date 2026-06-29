@@ -7,38 +7,79 @@ import { Box, Button, Container, Flex, Heading, Tabs } from "@radix-ui/themes";
 
 import { api } from "@/lib/api";
 
-/** A ghost link button used as a page action (e.g. "Home", "Exit"). */
-export function BackLink({ href, children }: { href: string; children: ReactNode }) {
+// The primary destinations, shown in the top bar on EVERY page. The brand ("Stocky") links home,
+// so these plus the brand are all the navigation any page needs — pages never render their own
+// back-links or nav.
+const MAIN_NAV = [
+  { href: "/kiosk", label: "Kiosk" },
+  { href: "/inventory", label: "Inventory" },
+  { href: "/admin", label: "Admin" },
+];
+
+// The admin sub-sections, shown as a second-level nav row on /admin/* pages only.
+const ADMIN_NAV = [
+  { href: "/admin/users", label: "Users & Groups" },
+  { href: "/admin/inventory", label: "Inventory" },
+  { href: "/admin/export", label: "Export" },
+];
+
+/** A row of route tabs that highlights whichever entry matches the current path. */
+function NavTabs({ items, active }: { items: { href: string; label: string }[]; active: string }) {
   return (
-    <Link href={href}>
-      <Button variant="ghost" color="gray">
-        {children}
-      </Button>
-    </Link>
+    <Tabs.Root value={active}>
+      <Tabs.List>
+        {items.map((n) => (
+          <Link key={n.href} href={n.href}>
+            <Tabs.Trigger value={n.href}>{n.label}</Tabs.Trigger>
+          </Link>
+        ))}
+      </Tabs.List>
+    </Tabs.Root>
+  );
+}
+
+/** Logs the admin out and returns to the login page. Rendered automatically on admin pages. */
+function LogoutButton() {
+  const router = useRouter();
+  return (
+    <Button
+      variant="soft"
+      onClick={async () => {
+        await api.logout();
+        router.replace("/login");
+      }}
+    >
+      Log out
+    </Button>
   );
 }
 
 /**
- * The single application shell shared by the admin and public pages: a consistent top bar
- * (the "Stocky" brand, an optional `nav` slot, and an optional right-aligned `actions` slot) above
- * a centered content container with a section header (`title` + optional `action`). Replaces the
- * previously divergent admin layout and public PageShell so every page looks the same.
+ * The single application shell EVERY page renders: a consistent top bar (the "Stocky" brand + the
+ * primary nav, plus an automatic "Log out" on admin pages) above a centered content container with
+ * an optional section header (`title` + optional `action`). Navigation is owned entirely by the
+ * shell — pages pass only their own `title`/`action` and never wire up nav or back-links — so the
+ * interface is identical across kiosk, inventory, admin, home, and login.
  */
 export function AppShell({
-  nav,
-  actions,
   title,
   action,
   containerSize = "4",
   children,
 }: {
-  nav?: ReactNode;
-  actions?: ReactNode;
-  title: ReactNode;
+  title?: ReactNode;
   action?: ReactNode;
   containerSize?: "1" | "2" | "3" | "4";
   children: ReactNode;
 }) {
+  const pathname = usePathname();
+  const isAdmin = pathname.startsWith("/admin");
+
+  // Highlight the main-nav entry whose route is the current path or a parent of it.
+  const mainActive =
+    MAIN_NAV.find((n) => pathname === n.href || pathname.startsWith(n.href + "/"))?.href ?? "";
+  const adminActive = ADMIN_NAV.find((n) => pathname.startsWith(n.href))?.href ?? "/admin/users";
+
   return (
     <Box>
       <Flex
@@ -56,58 +97,35 @@ export function AppShell({
               Stocky
             </Link>
           </Heading>
-          {nav}
+          <NavTabs items={MAIN_NAV} active={mainActive} />
         </Flex>
-        {actions && <Flex align="center" gap="3">{actions}</Flex>}
+        {isAdmin && (
+          <Flex align="center" gap="3">
+            <LogoutButton />
+          </Flex>
+        )}
       </Flex>
-      <Container size={containerSize} p="5">
-        <Flex justify="between" align="center" mb="4" gap="3" wrap="wrap">
-          <Heading size="7">{title}</Heading>
-          {action}
+
+      {isAdmin && (
+        <Flex
+          className="no-print"
+          px="5"
+          py="2"
+          style={{ borderBottom: "1px solid var(--gray-4)" }}
+        >
+          <NavTabs items={ADMIN_NAV} active={adminActive} />
         </Flex>
+      )}
+
+      <Container size={containerSize} p="5">
+        {title != null && (
+          <Flex justify="between" align="center" mb="4" gap="3" wrap="wrap">
+            <Heading size="7">{title}</Heading>
+            {action}
+          </Flex>
+        )}
         {children}
       </Container>
     </Box>
-  );
-}
-
-/** The admin section tabs, highlighting the active route. Used as the AppShell `nav` on admin pages. */
-export function AdminNav() {
-  const pathname = usePathname();
-  const tab = pathname.startsWith("/admin/inventory")
-    ? "inventory"
-    : pathname.startsWith("/admin/export")
-      ? "export"
-      : "users";
-  return (
-    <Tabs.Root value={tab}>
-      <Tabs.List>
-        <Link href="/admin/users">
-          <Tabs.Trigger value="users">Users &amp; Groups</Tabs.Trigger>
-        </Link>
-        <Link href="/admin/inventory">
-          <Tabs.Trigger value="inventory">Inventory</Tabs.Trigger>
-        </Link>
-        <Link href="/admin/export">
-          <Tabs.Trigger value="export">Export</Tabs.Trigger>
-        </Link>
-      </Tabs.List>
-    </Tabs.Root>
-  );
-}
-
-/** Logs the admin out and returns to the login page. Used as an AppShell `actions` entry. */
-export function LogoutButton() {
-  const router = useRouter();
-  return (
-    <Button
-      variant="soft"
-      onClick={async () => {
-        await api.logout();
-        router.replace("/login");
-      }}
-    >
-      Log out
-    </Button>
   );
 }

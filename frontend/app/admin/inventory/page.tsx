@@ -16,7 +16,7 @@ import {
 } from "@radix-ui/themes";
 import { EyeOpenIcon, IdCardIcon, Pencil1Icon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
 
-import { AdminNav, AppShell, LogoutButton } from "@/components/AppShell";
+import { AppShell } from "@/components/AppShell";
 import { BarcodeLabelDialog } from "@/components/BarcodeLabelDialog";
 import { ConfirmButton, ConfirmDialog, DialogFooter, DialogHeader } from "@/components/Dialogs";
 import { Field, isModified } from "@/components/Field";
@@ -125,8 +125,6 @@ export default function InventoryAdminPage() {
 
   return (
     <AppShell
-      nav={<AdminNav />}
-      actions={<LogoutButton />}
       title="Inventory"
       action={
         <Flex gap="3">

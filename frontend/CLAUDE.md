@@ -20,9 +20,15 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
   props (`size`, `color`, `gap`, `mb`…) over custom CSS. Global CSS in `app/globals.css` is
   intentionally tiny (plus print styles); don't introduce a CSS framework.
 - **Shared UI primitives — use these, don't hand-roll.** To keep the app uniform:
-  - `components/AppShell.tsx` — the single shell every page uses: a top bar (the "Stocky" brand +
-    optional `nav`/`actions` slots) over a centered container with a section header. Admin pages
-    pass `nav={<AdminNav/>}` + `actions={<LogoutButton/>}`; public pages pass a `BackLink` action.
+  - `components/AppShell.tsx` — the single shell **every** page renders (home, login, kiosk,
+    inventory, and all admin pages), over a centered container with an optional section header
+    (`title` + optional `action`). **Navigation is owned entirely by the shell** so it's identical
+    everywhere: the top bar shows the "Stocky" brand (links home) + the primary nav tabs
+    (Kiosk · Inventory · Admin), the shell auto-renders the admin sub-nav row + "Log out" on
+    `/admin/*`, and it highlights the active route from `usePathname`. Pages pass only their own
+    `title`/`action` — never nav, "Home"/"Exit" back-links, or per-page chrome. To add a top-level
+    destination or admin sub-section, edit `MAIN_NAV` / `ADMIN_NAV` in `AppShell.tsx`; don't
+    hand-roll a nav or a back-link in a page.
   - `components/DataTable.tsx` — the one flat list table (`columns` + `rows`, optional row click).
     Don't write raw `<table>` markup.
   - `components/GroupedTable.tsx` — the one grouped/nested table: `GroupNode<T>[]` (group headers

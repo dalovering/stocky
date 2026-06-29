@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Callout, Dialog, Flex, Heading, Select, Separator, Text, TextField } from "@radix-ui/themes";
 import { EyeOpenIcon, IdCardIcon, Pencil1Icon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
 
-import { AdminNav, AppShell, LogoutButton } from "@/components/AppShell";
+import { AppShell } from "@/components/AppShell";
 import { BarcodeLabelDialog } from "@/components/BarcodeLabelDialog";
 import { ConfirmButton, ConfirmDialog, DialogFooter, DialogHeader } from "@/components/Dialogs";
 import { Field } from "@/components/Field";
@@ -115,8 +115,6 @@ export default function UsersPage() {
 
   return (
     <AppShell
-      nav={<AdminNav />}
-      actions={<LogoutButton />}
       title="Users &amp; Groups"
       action={
         <Flex gap="3">

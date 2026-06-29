@@ -14,7 +14,7 @@ import {
   TextField,
 } from "@radix-ui/themes";
 
-import { AppShell, BackLink } from "@/components/AppShell";
+import { AppShell } from "@/components/AppShell";
 import { BarcodeScannerProvider } from "@/components/BarcodeScannerProvider";
 import { StatusBadge } from "@/components/HistoryList";
 import { api, ApiError } from "@/lib/api";
@@ -100,11 +100,7 @@ export default function KioskPage() {
   }, [resetIdle, user]);
 
   return (
-    <AppShell
-      title="Check-in / Check-out"
-      action={<BackLink href="/">Exit</BackLink>}
-      containerSize="3"
-    >
+    <AppShell title="Check-in / Check-out" containerSize="3">
       {/* Global scanner — works with no input focused. */}
       <BarcodeScannerProvider onScan={handleScan} />
 
