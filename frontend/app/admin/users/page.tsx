@@ -114,8 +114,14 @@ export default function UsersPage() {
   }
 
   return (
-    <AppShell
-      action={
+    <AppShell>
+      <Flex mb="3" gap="3" justify="between" align="center" wrap="wrap">
+        <TextField.Root
+          placeholder="Search users…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          style={{ minWidth: 220 }}
+        />
         <Flex gap="3">
           <Button variant="soft" onClick={() => setEditGroup({})}>
             <PlusIcon /> Add group
@@ -124,15 +130,6 @@ export default function UsersPage() {
             <PlusIcon /> Add user
           </Button>
         </Flex>
-      }
-    >
-      <Flex mb="3" gap="3" wrap="wrap">
-        <TextField.Root
-          placeholder="Search users…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          style={{ minWidth: 220 }}
-        />
       </Flex>
 
       {error && (

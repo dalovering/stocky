@@ -29,10 +29,11 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
     the shell auto-renders a centered **`SegmentedControl`** sub-nav (Users · Inventory · Export) —
     the pill/segmented look deliberately differentiates the second nav level from the top tabs —
     plus the "Log out" button. Active state is derived from `usePathname`. **Don't render a
-    page-name heading in a page** — the nav already shows where you are; pages pass only an optional
-    `action` (toolbar buttons) and, rarely, a `title` for a landing page (home's "Welcome"). To add
-    a destination, edit `MAIN_NAV` / `ADMIN_NAV` in `AppShell.tsx`; never hand-roll a nav, a
-    back-link, or a redundant page title in a page.
+    page-name heading in a page** — the nav already shows where you are. A page puts its own action
+    toolbar (search + "Add" buttons, in one `Flex justify="between"` row — don't stack them) in the
+    body; the only AppShell prop besides `containerSize` is `title`, used solely for a landing page
+    (home's "Welcome"). To add a destination, edit `MAIN_NAV` / `ADMIN_NAV` in `AppShell.tsx`; never
+    hand-roll a nav, a back-link, or a redundant page title in a page.
   - `components/DataTable.tsx` — the one flat list table (`columns` + `rows`, optional row click).
     Don't write raw `<table>` markup.
   - `components/GroupedTable.tsx` — the one grouped/nested table: `GroupNode<T>[]` (group headers

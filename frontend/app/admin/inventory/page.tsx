@@ -124,8 +124,14 @@ export default function InventoryAdminPage() {
   }
 
   return (
-    <AppShell
-      action={
+    <AppShell>
+      <Flex mb="3" gap="3" justify="between" align="center" wrap="wrap">
+        <TextField.Root
+          placeholder="Search items…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          style={{ minWidth: 220 }}
+        />
         <Flex gap="3">
           <Button variant="soft" onClick={() => setEditType({})}>
             <PlusIcon /> Add item type
@@ -134,15 +140,6 @@ export default function InventoryAdminPage() {
             <PlusIcon /> Add item
           </Button>
         </Flex>
-      }
-    >
-      <Flex mb="3" gap="3" wrap="wrap">
-        <TextField.Root
-          placeholder="Search items…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          style={{ minWidth: 220 }}
-        />
       </Flex>
 
       {error && (

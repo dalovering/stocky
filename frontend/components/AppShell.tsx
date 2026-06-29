@@ -85,17 +85,16 @@ function LogoutButton() {
  * The single application shell EVERY page renders: a consistent top bar (the "Stocky" brand + the
  * primary nav, plus an automatic "Log out" on admin pages), an automatic centered sub-nav on
  * `/admin/*`, and a centered content container. Navigation is owned entirely by the shell — pages
- * pass only an optional `action` (and, rarely, a `title` for a landing page like home); they never
- * render their own page-name heading, since the nav already shows where you are.
+ * never render their own page-name heading (the nav already shows where you are) and put their own
+ * action toolbar (e.g. search + "Add" buttons) in the body. `title` is only for a landing page
+ * like home.
  */
 export function AppShell({
   title,
-  action,
   containerSize = "4",
   children,
 }: {
   title?: ReactNode;
-  action?: ReactNode;
   containerSize?: "1" | "2" | "3" | "4";
   children: ReactNode;
 }) {
@@ -136,17 +135,10 @@ export function AppShell({
       {isAdmin && <AdminSubNav active={adminActive} />}
 
       <Container size={containerSize} p="5">
-        {(title != null || action != null) && (
-          <Flex
-            justify={title != null ? "between" : "end"}
-            align="center"
-            mb="4"
-            gap="3"
-            wrap="wrap"
-          >
-            {title != null && <Heading size="7">{title}</Heading>}
-            {action}
-          </Flex>
+        {title != null && (
+          <Heading size="7" mb="4">
+            {title}
+          </Heading>
         )}
         {children}
       </Container>
