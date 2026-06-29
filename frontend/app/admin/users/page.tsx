@@ -115,7 +115,6 @@ export default function UsersPage() {
 
   return (
     <AppShell
-      title="Users &amp; Groups"
       action={
         <Flex gap="3">
           <Button variant="soft" onClick={() => setEditGroup({})}>

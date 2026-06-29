@@ -27,7 +27,7 @@ export default function ExportPage() {
   }
 
   return (
-    <AppShell title="Export data">
+    <AppShell>
       <Card>
         <Heading size="3">Barcode labels (PDF)</Heading>
         <Text as="p" size="2" color="gray" mt="1">

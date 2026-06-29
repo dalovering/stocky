@@ -23,12 +23,16 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
   - `components/AppShell.tsx` — the single shell **every** page renders (home, login, kiosk,
     inventory, and all admin pages), over a centered container with an optional section header
     (`title` + optional `action`). **Navigation is owned entirely by the shell** so it's identical
-    everywhere: the top bar shows the "Stocky" brand (links home) + the primary nav tabs
-    (Kiosk · Inventory · Admin), the shell auto-renders the admin sub-nav row + "Log out" on
-    `/admin/*`, and it highlights the active route from `usePathname`. Pages pass only their own
-    `title`/`action` — never nav, "Home"/"Exit" back-links, or per-page chrome. To add a top-level
-    destination or admin sub-section, edit `MAIN_NAV` / `ADMIN_NAV` in `AppShell.tsx`; don't
-    hand-roll a nav or a back-link in a page.
+    everywhere: the top bar shows the "Stocky" brand (links home) + the primary section nav
+    (Kiosk · Inventory · Admin) as a **`TabNav`** (the Radix Themes navigation primitive — real
+    `<nav>` links with an active state, *not* `Tabs`, which is for in-page panels). On `/admin/*`
+    the shell auto-renders a centered **`SegmentedControl`** sub-nav (Users · Inventory · Export) —
+    the pill/segmented look deliberately differentiates the second nav level from the top tabs —
+    plus the "Log out" button. Active state is derived from `usePathname`. **Don't render a
+    page-name heading in a page** — the nav already shows where you are; pages pass only an optional
+    `action` (toolbar buttons) and, rarely, a `title` for a landing page (home's "Welcome"). To add
+    a destination, edit `MAIN_NAV` / `ADMIN_NAV` in `AppShell.tsx`; never hand-roll a nav, a
+    back-link, or a redundant page title in a page.
   - `components/DataTable.tsx` — the one flat list table (`columns` + `rows`, optional row click).
     Don't write raw `<table>` markup.
   - `components/GroupedTable.tsx` — the one grouped/nested table: `GroupNode<T>[]` (group headers

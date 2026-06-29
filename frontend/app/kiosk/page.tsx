@@ -132,7 +132,7 @@ export default function KioskPage() {
   }, [resetIdle, user]);
 
   return (
-    <AppShell title="Check-in / Check-out" containerSize="3">
+    <AppShell containerSize="3">
       {/* Global scanner — works with no input focused. */}
       <BarcodeScannerProvider onScan={handleScan} />
 

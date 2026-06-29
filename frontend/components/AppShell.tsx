@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Box, Button, Container, Flex, Heading, Tabs } from "@radix-ui/themes";
+import { Box, Button, Container, Flex, Heading, SegmentedControl, TabNav } from "@radix-ui/themes";
 
 import { api } from "@/lib/api";
 
@@ -16,25 +16,52 @@ const MAIN_NAV = [
   { href: "/admin", label: "Admin" },
 ];
 
-// The admin sub-sections, shown as a second-level nav row on /admin/* pages only.
+// The admin sub-sections, shown as a second-level switcher on /admin/* pages only.
 const ADMIN_NAV = [
   { href: "/admin/users", label: "Users & Groups" },
   { href: "/admin/inventory", label: "Inventory" },
   { href: "/admin/export", label: "Export" },
 ];
 
-/** A row of route tabs that highlights whichever entry matches the current path. */
-function NavTabs({ items, active }: { items: { href: string; label: string }[]; active: string }) {
+/**
+ * Top-level sections. `TabNav` is the Radix Themes primitive for *navigation* (a real <nav> of
+ * links with an active state) — distinct from `Tabs`, which is for in-page panel switching.
+ */
+function MainNav({ active }: { active: string }) {
   return (
-    <Tabs.Root value={active}>
-      <Tabs.List>
-        {items.map((n) => (
-          <Link key={n.href} href={n.href}>
-            <Tabs.Trigger value={n.href}>{n.label}</Tabs.Trigger>
-          </Link>
+    <TabNav.Root>
+      {MAIN_NAV.map((n) => (
+        <TabNav.Link key={n.href} asChild active={n.href === active}>
+          <Link href={n.href}>{n.label}</Link>
+        </TabNav.Link>
+      ))}
+    </TabNav.Root>
+  );
+}
+
+/**
+ * Admin sub-sections. A centered `SegmentedControl` deliberately differs from the top `TabNav`:
+ * the segmented/pill look reads as "switch between sibling views" and visually separates the two
+ * nav levels. It drives the router on change.
+ */
+function AdminSubNav({ active }: { active: string }) {
+  const router = useRouter();
+  return (
+    <Flex
+      className="no-print"
+      justify="center"
+      px="5"
+      py="2"
+      style={{ borderBottom: "1px solid var(--gray-4)" }}
+    >
+      <SegmentedControl.Root value={active} onValueChange={(v) => router.push(v)}>
+        {ADMIN_NAV.map((n) => (
+          <SegmentedControl.Item key={n.href} value={n.href}>
+            {n.label}
+          </SegmentedControl.Item>
         ))}
-      </Tabs.List>
-    </Tabs.Root>
+      </SegmentedControl.Root>
+    </Flex>
   );
 }
 
@@ -56,10 +83,10 @@ function LogoutButton() {
 
 /**
  * The single application shell EVERY page renders: a consistent top bar (the "Stocky" brand + the
- * primary nav, plus an automatic "Log out" on admin pages) above a centered content container with
- * an optional section header (`title` + optional `action`). Navigation is owned entirely by the
- * shell — pages pass only their own `title`/`action` and never wire up nav or back-links — so the
- * interface is identical across kiosk, inventory, admin, home, and login.
+ * primary nav, plus an automatic "Log out" on admin pages), an automatic centered sub-nav on
+ * `/admin/*`, and a centered content container. Navigation is owned entirely by the shell — pages
+ * pass only an optional `action` (and, rarely, a `title` for a landing page like home); they never
+ * render their own page-name heading, since the nav already shows where you are.
  */
 export function AppShell({
   title,
@@ -97,7 +124,7 @@ export function AppShell({
               Stocky
             </Link>
           </Heading>
-          <NavTabs items={MAIN_NAV} active={mainActive} />
+          <MainNav active={mainActive} />
         </Flex>
         {isAdmin && (
           <Flex align="center" gap="3">
@@ -106,21 +133,18 @@ export function AppShell({
         )}
       </Flex>
 
-      {isAdmin && (
-        <Flex
-          className="no-print"
-          px="5"
-          py="2"
-          style={{ borderBottom: "1px solid var(--gray-4)" }}
-        >
-          <NavTabs items={ADMIN_NAV} active={adminActive} />
-        </Flex>
-      )}
+      {isAdmin && <AdminSubNav active={adminActive} />}
 
       <Container size={containerSize} p="5">
-        {title != null && (
-          <Flex justify="between" align="center" mb="4" gap="3" wrap="wrap">
-            <Heading size="7">{title}</Heading>
+        {(title != null || action != null) && (
+          <Flex
+            justify={title != null ? "between" : "end"}
+            align="center"
+            mb="4"
+            gap="3"
+            wrap="wrap"
+          >
+            {title != null && <Heading size="7">{title}</Heading>}
             {action}
           </Flex>
         )}

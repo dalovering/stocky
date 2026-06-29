@@ -125,7 +125,6 @@ export default function InventoryAdminPage() {
 
   return (
     <AppShell
-      title="Inventory"
       action={
         <Flex gap="3">
           <Button variant="soft" onClick={() => setEditType({})}>

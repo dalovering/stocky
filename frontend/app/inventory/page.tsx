@@ -55,7 +55,7 @@ export default function InventoryPage() {
   }, [items]);
 
   return (
-    <AppShell title="Inventory">
+    <AppShell>
       <Flex mb="3" gap="3" align="center" wrap="wrap">
         <TextField.Root
           placeholder="Search items…"
