@@ -1,32 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Badge,
-  Box,
   Button,
-  Card,
+  Callout,
   Dialog,
   Flex,
   Grid,
   Heading,
-  SegmentedControl,
   Select,
   Separator,
   Text,
   TextArea,
   TextField,
 } from "@radix-ui/themes";
-import { PlusIcon } from "@radix-ui/react-icons";
+import { EyeOpenIcon, IdCardIcon, Pencil1Icon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
 
 import { AdminNav, AppShell, LogoutButton } from "@/components/AppShell";
 import { BarcodeLabelDialog } from "@/components/BarcodeLabelDialog";
-import { DataTable } from "@/components/DataTable";
-import { ConfirmButton, DialogFooter, DialogHeader } from "@/components/Dialogs";
+import { ConfirmButton, ConfirmDialog, DialogFooter, DialogHeader } from "@/components/Dialogs";
 import { Field, isModified } from "@/components/Field";
+import { GroupedTable, type GroupNode } from "@/components/GroupedTable";
 import { HistoryList, StatusBadge } from "@/components/HistoryList";
 import { PassiveSelect } from "@/components/PassiveSelect";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import type { Item, ItemEvent, ItemType } from "@/lib/types";
 
 const ADD_NEW_TYPE = "__add_new_type__";
@@ -41,8 +38,9 @@ function generateItemBarcode(): string {
   return `I${digits}`;
 }
 
+type DeleteTarget = { kind: "item" | "type"; id: string; name: string };
+
 export default function InventoryAdminPage() {
-  const [tab, setTab] = useState<"items" | "types">("items");
   const [types, setTypes] = useState<ItemType[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
@@ -52,6 +50,9 @@ export default function InventoryAdminPage() {
   const [editType, setEditType] = useState<Partial<ItemType> | null>(null);
   const [editItem, setEditItem] = useState<Partial<Item> | null>(null);
   const [detailItem, setDetailItem] = useState<Item | null>(null);
+  const [printItem, setPrintItem] = useState<Item | null>(null);
+  const [del, setDel] = useState<DeleteTarget | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     const [t, l, m] = await Promise.all([api.itemTypes(), api.locations(), api.manufacturers()]);
@@ -61,8 +62,8 @@ export default function InventoryAdminPage() {
   }, []);
 
   const loadItems = useCallback(async () => {
-    setItems(await api.adminItems({ q: q || undefined }));
-  }, [q]);
+    setItems(await api.adminItems());
+  }, []);
 
   useEffect(() => {
     loadAll();
@@ -71,72 +72,110 @@ export default function InventoryAdminPage() {
     loadItems();
   }, [loadItems]);
 
+  // One group per item type, with its items beneath (name-filtered client-side so the type
+  // headers stay stable while searching).
+  const groupNodes = useMemo<GroupNode<Item>[]>(() => {
+    const needle = q.trim().toLowerCase();
+    const byType = new Map<string, Item[]>();
+    for (const i of items) {
+      if (needle && !i.name.toLowerCase().includes(needle)) continue;
+      const list = byType.get(i.item_type_id);
+      if (list) list.push(i);
+      else byType.set(i.item_type_id, [i]);
+    }
+    return types.map((t) => {
+      const rows = byType.get(t.id) ?? [];
+      return {
+        id: t.id,
+        title: t.name,
+        meta: `${rows.length} items`,
+        actions: [
+          {
+            icon: <PlusIcon />,
+            label: "Add item of this type",
+            onClick: () => setEditItem({ item_type_id: t.id }),
+          },
+          { icon: <Pencil1Icon />, label: "Edit type", onClick: () => setEditType(t) },
+          {
+            icon: <TrashIcon />,
+            label: "Delete type",
+            color: "red",
+            onClick: () => setDel({ kind: "type", id: t.id, name: t.name }),
+          },
+        ],
+        children: [],
+        rows,
+      };
+    });
+  }, [types, items, q]);
+
+  async function confirmDelete() {
+    if (!del) return;
+    const target = del;
+    setDel(null);
+    try {
+      if (target.kind === "item") await api.deleteItem(target.id);
+      else await api.deleteItemType(target.id);
+      loadItems();
+      loadAll();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Delete failed.");
+    }
+  }
+
   return (
-    <AppShell nav={<AdminNav />} actions={<LogoutButton />} title="Inventory">
-      <Flex justify="between" align="center" mb="4" gap="3" wrap="wrap">
-        <SegmentedControl.Root value={tab} onValueChange={(v) => setTab(v as "items" | "types")}>
-          <SegmentedControl.Item value="items">Items</SegmentedControl.Item>
-          <SegmentedControl.Item value="types">Item types</SegmentedControl.Item>
-        </SegmentedControl.Root>
-        <Flex gap="3" align="center">
-          {tab === "items" && (
-            <TextField.Root
-              placeholder="Search items…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              style={{ minWidth: 220 }}
-            />
-          )}
-          {tab === "items" ? (
-            <Button onClick={() => setEditItem({})}>
-              <PlusIcon /> Add item
-            </Button>
-          ) : (
-            <Button onClick={() => setEditType({})}>
-              <PlusIcon /> Add item type
-            </Button>
-          )}
+    <AppShell
+      nav={<AdminNav />}
+      actions={<LogoutButton />}
+      title="Inventory"
+      action={
+        <Flex gap="3">
+          <Button variant="soft" onClick={() => setEditType({})}>
+            <PlusIcon /> Add item type
+          </Button>
+          <Button onClick={() => setEditItem({})}>
+            <PlusIcon /> Add item
+          </Button>
         </Flex>
+      }
+    >
+      <Flex mb="3" gap="3" wrap="wrap">
+        <TextField.Root
+          placeholder="Search items…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          style={{ minWidth: 220 }}
+        />
       </Flex>
 
-      {tab === "items" ? (
-        <DataTable
-          rows={items}
-          rowKey={(i) => i.id}
-          onRowClick={setDetailItem}
-          empty="No items yet."
-          columns={[
-            { header: "Name", cell: (i) => i.name },
-            { header: "Type", cell: (i) => i.item_type_name },
-            { header: "Location", cell: (i) => i.location ?? "—" },
-            { header: "Condition", cell: (i) => i.condition },
-            { header: "Status", cell: (i) => <StatusBadge status={i.status} /> },
-          ]}
-        />
-      ) : (
-        <Grid columns={{ initial: "1", sm: "2", lg: "3" }} gap="3">
-          {types.map((t) => (
-            <Card key={t.id} className="clickable" onClick={() => setEditType(t)}>
-              <Flex justify="between">
-                <Heading size="3">{t.name}</Heading>
-                <Badge variant="soft" color="gray">
-                  {t.item_count} items
-                </Badge>
-              </Flex>
-              <Text size="2" color="gray">
-                {t.manufacturer ?? "—"}
-                {t.author ? ` · ${t.author}` : ""}
-              </Text>
-              {t.description && (
-                <Text size="2" mt="1">
-                  {t.description}
-                </Text>
-              )}
-            </Card>
-          ))}
-          {types.length === 0 && <Text color="gray">No item types yet.</Text>}
-        </Grid>
+      {error && (
+        <Callout.Root color="red" mb="3" role="alert">
+          <Callout.Text>{error}</Callout.Text>
+        </Callout.Root>
       )}
+
+      <GroupedTable
+        groups={groupNodes}
+        rowKey={(i) => i.id}
+        empty="No item types yet."
+        columns={[
+          { header: "Name", cell: (i) => i.name },
+          { header: "Location", cell: (i) => i.location ?? "—" },
+          { header: "Condition", cell: (i) => i.condition },
+          { header: "Status", cell: (i) => <StatusBadge status={i.status} /> },
+        ]}
+        rowActions={(i) => [
+          { icon: <EyeOpenIcon />, label: "View", onClick: () => setDetailItem(i) },
+          { icon: <Pencil1Icon />, label: "Edit", onClick: () => setEditItem(i) },
+          { icon: <IdCardIcon />, label: "Print tag", onClick: () => setPrintItem(i) },
+          {
+            icon: <TrashIcon />,
+            label: "Delete",
+            color: "red",
+            onClick: () => setDel({ kind: "item", id: i.id, name: i.name }),
+          },
+        ]}
+      />
 
       {editType && (
         <ItemTypeDialog
@@ -180,6 +219,30 @@ export default function InventoryAdminPage() {
           }}
         />
       )}
+
+      {printItem && (
+        <BarcodeLabelDialog
+          open
+          onOpenChange={(o) => !o && setPrintItem(null)}
+          kind="Item tag"
+          title={printItem.name}
+          subtitle={printItem.item_type_name}
+          barcodeValue={printItem.barcode}
+          svgUrl={api.itemBarcodeSvg(printItem.id)}
+        />
+      )}
+
+      <ConfirmDialog
+        open={del !== null}
+        onOpenChange={(o) => !o && setDel(null)}
+        title={del ? `Delete ${del.name}?` : ""}
+        description={
+          del?.kind === "type"
+            ? "This deletes the item type. It must have no items first."
+            : "This removes the item and its history. This cannot be undone."
+        }
+        onConfirm={confirmDelete}
+      />
     </AppShell>
   );
 }
