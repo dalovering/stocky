@@ -32,6 +32,30 @@ async def test_group_and_user_crud(admin_client):
 
 
 @pytest.mark.asyncio
+async def test_cannot_delete_nonempty_group(admin_client):
+    parent = (await admin_client.post("/api/admin/groups", json={"name": "School"})).json()
+    child = (
+        await admin_client.post(
+            "/api/admin/groups", json={"name": "Room 1", "parent_id": parent["id"]}
+        )
+    ).json()
+
+    # Parent has a subgroup -> blocked.
+    assert (await admin_client.delete(f"/api/admin/groups/{parent['id']}")).status_code == 409
+
+    # Child has a member -> blocked.
+    user = (
+        await admin_client.post("/api/admin/users", json={"name": "Ada", "group_id": child["id"]})
+    ).json()
+    assert (await admin_client.delete(f"/api/admin/groups/{child['id']}")).status_code == 409
+
+    # Empty the groups, then deletion succeeds.
+    assert (await admin_client.delete(f"/api/admin/users/{user['id']}")).status_code == 204
+    assert (await admin_client.delete(f"/api/admin/groups/{child['id']}")).status_code == 204
+    assert (await admin_client.delete(f"/api/admin/groups/{parent['id']}")).status_code == 204
+
+
+@pytest.mark.asyncio
 async def test_item_type_and_item_crud(admin_client):
     item_type = (
         await admin_client.post(

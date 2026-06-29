@@ -83,6 +83,19 @@ async def delete_group(group_id: uuid.UUID, session: AsyncSession = Depends(get_
     group = await session.get(Group, group_id)
     if group is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Group not found.")
+    # Block deleting a non-empty group: its parent_id / group_id foreign keys would otherwise
+    # raise a DB error. Mirror the item-type guard and return a clean 409 instead.
+    child_groups = await session.scalar(
+        select(func.count()).select_from(Group).where(Group.parent_id == group_id)
+    )
+    members = await session.scalar(
+        select(func.count()).select_from(User).where(User.group_id == group_id)
+    )
+    if child_groups or members:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Cannot delete a group that still has subgroups or members.",
+        )
     await session.delete(group)
     await session.commit()
 
