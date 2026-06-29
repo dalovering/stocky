@@ -10,15 +10,16 @@ import {
   Flex,
   Grid,
   Heading,
+  Separator,
   Text,
   TextField,
 } from "@radix-ui/themes";
 
 import { AppShell } from "@/components/AppShell";
 import { BarcodeScannerProvider } from "@/components/BarcodeScannerProvider";
-import { StatusBadge } from "@/components/HistoryList";
+import { HistoryList, StatusBadge } from "@/components/HistoryList";
 import { api, ApiError } from "@/lib/api";
-import type { Item, UserDetail } from "@/lib/types";
+import type { Item, ItemEvent, UserDetail } from "@/lib/types";
 
 // Auto-logout after this many ms of inactivity at the kiosk.
 const IDLE_MS = 60_000;
@@ -36,6 +37,7 @@ function ToastCallout({ toast }: { toast: NonNullable<Toast> }) {
 
 export default function KioskPage() {
   const [user, setUser] = useState<UserDetail | null>(null);
+  const [events, setEvents] = useState<ItemEvent[]>([]);
   const [toast, setToast] = useState<Toast>(null);
   const [modalItem, setModalItem] = useState<Item | null>(null);
   const [manual, setManual] = useState("");
@@ -53,7 +55,12 @@ export default function KioskPage() {
 
   const logout = useCallback(() => {
     setUser(null);
+    setEvents([]);
     setModalItem(null);
+  }, []);
+
+  const loadEvents = useCallback(async (id: string) => {
+    setEvents(await api.kioskUserEvents(id));
   }, []);
 
   const resetIdle = useCallback(() => {
@@ -67,7 +74,11 @@ export default function KioskPage() {
   }, [logout, flash]);
 
   const refreshUser = useCallback(async () => {
-    if (userRef.current) setUser(await api.kioskUser(userRef.current.id));
+    const id = userRef.current?.id;
+    if (!id) return;
+    const [u, ev] = await Promise.all([api.kioskUser(id), api.kioskUserEvents(id)]);
+    setUser(u);
+    setEvents(ev);
   }, []);
 
   const handleScan = useCallback(
@@ -80,6 +91,7 @@ export default function KioskPage() {
             setUser(resp.user);
             setModalItem(null);
             flash({ kind: "info", text: resp.message });
+            if (resp.user) await loadEvents(resp.user.id);
             break;
           case "checked_out":
           case "checked_in":
@@ -98,7 +110,7 @@ export default function KioskPage() {
         flash({ kind: "error", text: err instanceof ApiError ? err.message : "Scan failed." });
       }
     },
-    [flash, refreshUser, resetIdle],
+    [flash, loadEvents, refreshUser, resetIdle],
   );
 
   useEffect(() => {
@@ -118,6 +130,7 @@ export default function KioskPage() {
       ) : (
         <UserPanel
           user={user}
+          events={events}
           toast={toast}
           onOpenItem={setModalItem}
           onComplete={() => {
@@ -186,11 +199,13 @@ function IdlePrompt({
 
 function UserPanel({
   user,
+  events,
   toast,
   onOpenItem,
   onComplete,
 }: {
   user: UserDetail;
+  events: ItemEvent[];
   toast: Toast;
   onOpenItem: (i: Item) => void;
   onComplete: () => void;
@@ -240,6 +255,13 @@ function UserPanel({
       <Text size="2" color="gray" mt="4" as="p">
         Scan an item barcode to check it in or out automatically.
       </Text>
+
+      <Separator my="4" size="4" />
+      <Heading size="4" mb="2">
+        History
+      </Heading>
+      {/* Already sorted most-recent-first by the backend. */}
+      <HistoryList events={events} />
     </Box>
   );
 }

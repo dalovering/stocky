@@ -115,6 +115,7 @@ export const api = {
   scan: (barcode: string, active_user_id?: string | null) =>
     post<ScanResponse>("/api/kiosk/scan", { barcode, active_user_id: active_user_id ?? null }),
   kioskUser: (id: string) => get<UserDetail>(`/api/kiosk/user/${id}`),
+  kioskUserEvents: (id: string) => get<ItemEvent[]>(`/api/kiosk/user/${id}/events`),
   kioskCheckout: (item_id: string, user_id: string) =>
     post<Item>("/api/kiosk/checkout", { item_id, user_id }),
   kioskCheckin: (item_id: string, user_id: string) =>
