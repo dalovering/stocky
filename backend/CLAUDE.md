@@ -20,10 +20,10 @@ app/
 ├── core/              # config (pydantic-settings), db engine/session, security (admin JWT)
 ├── models/            # SQLModel tables + enums (the DB schema)
 ├── schemas/           # Pydantic request/response models (decoupled from tables)
-├── services/          # business logic: status derivation, loan events, barcodes, label PDFs, serializers
+├── services/          # business logic: status derivation, loan events, barcodes, label PDFs, serializers, shared queries
 ├── api/               # routers: auth, admin_users, admin_inventory, kiosk, inventory + deps
 ├── seed.py            # demo data (`make seed`)
-└── tests/             # pytest (SQLite in-memory)
+└── tests/             # pytest against a real postgres:18 container (testcontainers — never SQLite)
 alembic/               # migrations (env.py wires the async engine + SQLModel metadata)
 ```
 

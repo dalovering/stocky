@@ -19,6 +19,14 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
   primitives, Select, TextField, etc.) wrapped by `<Theme>` in `app/layout.tsx`. Prefer Radix
   props (`size`, `color`, `gap`, `mb`…) over custom CSS. Global CSS in `app/globals.css` is
   intentionally tiny (plus print styles); don't introduce a CSS framework.
+- **Shared UI primitives — use these, don't hand-roll.** To keep the app uniform:
+  - `components/DataTable.tsx` — the one list table (define `columns` + `rows`, optional row
+    click). Don't write raw `<table>` markup.
+  - `components/Dialogs.tsx` — `DialogHeader` (title + ✕), `DialogFooter` (Cancel/Save), and
+    `ConfirmButton` (a styled, scroll-locked confirm — never use native `window.confirm`).
+  - `components/PageShell.tsx` — `PublicShell` / `PageHeader` / `BackLink` give the public pages
+    (`/inventory`, `/kiosk`) one header + container, mirroring the admin shell in
+    `app/admin/layout.tsx`.
 - **API access.** All backend calls go through the typed client in `lib/api.ts`; it sends cookies
   (`credentials: "include"`) for the admin session. Don't call `fetch` directly from components.
   Keep `lib/types.ts` in sync with the backend `app/schemas`.
