@@ -1,45 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import {
-  Badge,
-  Box,
-  Card,
-  Dialog,
-  Flex,
-  Grid,
-  Heading,
-  SegmentedControl,
-  Select,
-  Separator,
-  Text,
-  TextField,
-} from "@radix-ui/themes";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Dialog, Flex, Heading, Select, Separator, Text, TextField } from "@radix-ui/themes";
 
-import { DataTable } from "@/components/DataTable";
+import { AppShell, BackLink } from "@/components/AppShell";
 import { DialogHeader } from "@/components/Dialogs";
-import { BackLink, PublicShell } from "@/components/PageShell";
+import { GroupedTable, type GroupNode } from "@/components/GroupedTable";
 import { HistoryList, StatusBadge } from "@/components/HistoryList";
 import { api } from "@/lib/api";
-import type { InventorySummaryRow, Item, ItemEvent } from "@/lib/types";
+import type { Item, ItemEvent } from "@/lib/types";
 
 export default function InventoryPage() {
-  const [view, setView] = useState<"items" | "summary">("items");
   const [items, setItems] = useState<Item[]>([]);
-  const [summary, setSummary] = useState<InventorySummaryRow[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [q, setQ] = useState("");
   const [location, setLocation] = useState<string | null>(null);
   const [detail, setDetail] = useState<Item | null>(null);
 
   const load = useCallback(async () => {
-    const [it, sum, locs] = await Promise.all([
+    const [it, locs] = await Promise.all([
       api.inventoryItems({ q: q || undefined, location: location ?? undefined }),
-      api.inventorySummary(),
       api.inventoryLocations(),
     ]);
     setItems(it);
-    setSummary(sum);
     setLocations(locs);
   }, [q, location]);
 
@@ -47,87 +30,67 @@ export default function InventoryPage() {
     load();
   }, [load]);
 
+  // Group items by type; the per-type availability counts in the header replace the old
+  // "By type" summary view.
+  const groupNodes = useMemo<GroupNode<Item>[]>(() => {
+    const byType = new Map<string, { name: string; rows: Item[] }>();
+    for (const i of items) {
+      const g = byType.get(i.item_type_id);
+      if (g) g.rows.push(i);
+      else byType.set(i.item_type_id, { name: i.item_type_name ?? "—", rows: [i] });
+    }
+    return [...byType.entries()]
+      .sort((a, b) => a[1].name.localeCompare(b[1].name))
+      .map(([id, { name, rows }]) => {
+        const available = rows.filter((r) => r.status === "Available").length;
+        const onLoan = rows.filter((r) => r.status === "On loan").length;
+        return {
+          id,
+          title: name,
+          meta: `${rows.length} total · ${available} available · ${onLoan} on loan`,
+          children: [],
+          rows,
+        };
+      });
+  }, [items]);
+
   return (
-    <PublicShell title="Inventory" action={<BackLink href="/">Home</BackLink>}>
-      <Flex justify="between" align="center" mb="3" gap="3" wrap="wrap">
-        <Flex gap="3" align="center" wrap="wrap">
-          <TextField.Root
-            placeholder="Search items…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            style={{ minWidth: 220 }}
-          />
-          <Select.Root
-            value={location ?? "all"}
-            onValueChange={(v) => setLocation(v === "all" ? null : v)}
-          >
-            <Select.Trigger placeholder="Location" />
-            <Select.Content>
-              <Select.Item value="all">All locations</Select.Item>
-              {locations.map((l) => (
-                <Select.Item key={l} value={l}>
-                  {l}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
-        </Flex>
-        <SegmentedControl.Root
-          value={view}
-          onValueChange={(v) => setView(v as "items" | "summary")}
-        >
-          <SegmentedControl.Item value="items">Items</SegmentedControl.Item>
-          <SegmentedControl.Item value="summary">By type</SegmentedControl.Item>
-        </SegmentedControl.Root>
+    <AppShell title="Inventory" action={<BackLink href="/">Home</BackLink>}>
+      <Flex mb="3" gap="3" align="center" wrap="wrap">
+        <TextField.Root
+          placeholder="Search items…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          style={{ minWidth: 220 }}
+        />
+        <Select.Root value={location ?? "all"} onValueChange={(v) => setLocation(v === "all" ? null : v)}>
+          <Select.Trigger placeholder="Location" />
+          <Select.Content>
+            <Select.Item value="all">All locations</Select.Item>
+            {locations.map((l) => (
+              <Select.Item key={l} value={l}>
+                {l}
+              </Select.Item>
+            ))}
+          </Select.Content>
+        </Select.Root>
       </Flex>
 
-      {view === "items" ? (
-        <Grid columns={{ initial: "1", sm: "2", lg: "3" }} gap="3">
-          {items.map((i) => (
-            <Card
-              key={i.id}
-              className="clickable"
-              onDoubleClick={() => setDetail(i)}
-              onClick={() => setDetail(i)}
-            >
-              <Flex justify="between" align="start">
-                <Box>
-                  <Heading size="3">{i.name}</Heading>
-                  <Text size="2" color="gray">
-                    {i.item_type_name}
-                  </Text>
-                </Box>
-                <StatusBadge status={i.status} />
-              </Flex>
-              <Flex mt="2" justify="between">
-                <Text size="2" color="gray">
-                  {i.location ?? "—"}
-                </Text>
-                <Badge variant="soft" color="gray">
-                  {i.condition}
-                </Badge>
-              </Flex>
-            </Card>
-          ))}
-          {items.length === 0 && <Text color="gray">No items found.</Text>}
-        </Grid>
-      ) : (
-        <DataTable
-          rows={summary}
-          rowKey={(_, idx) => idx}
-          empty="No items found."
-          columns={[
-            { header: "Item type", cell: (r) => r.item_type_name },
-            { header: "Location", cell: (r) => r.location ?? "—" },
-            { header: "Total", cell: (r) => r.total },
-            { header: "Available", cell: (r) => <Text color="green">{r.available}</Text> },
-            { header: "On loan", cell: (r) => <Text color="blue">{r.on_loan}</Text> },
-          ]}
-        />
-      )}
+      <GroupedTable
+        groups={groupNodes}
+        rowKey={(i) => i.id}
+        onRowClick={setDetail}
+        empty="No items found."
+        columns={[
+          { header: "Name", cell: (i) => i.name },
+          { header: "Location", cell: (i) => i.location ?? "—" },
+          { header: "Condition", cell: (i) => i.condition },
+          { header: "Status", cell: (i) => <StatusBadge status={i.status} /> },
+        ]}
+      />
 
       {detail && <ItemDetail item={detail} onClose={() => setDetail(null)} />}
-    </PublicShell>
+    </AppShell>
   );
 }
 
