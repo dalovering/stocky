@@ -135,7 +135,7 @@ export function GroupedTable<T>({
   walk(groups, 0);
 
   return (
-    <Table.Root variant="surface">
+    <Table.Root variant="surface" className="grouped-table">
       <Table.Header>
         <Table.Row>
           {columns.map((c, i) => (

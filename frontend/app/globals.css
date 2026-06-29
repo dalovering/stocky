@@ -16,6 +16,19 @@ body {
   cursor: pointer;
 }
 
+/*
+ * Safari fix for the grouped tables. Radix's `Table.Root variant="surface"` puts `height: 0` and
+ * `overflow: hidden` on the <table> element; in Safari that combination sizes the table to content
+ * on first layout but won't re-grow (or unclip) when rows are inserted dynamically — so expanding a
+ * collapsed group leaves its rows in the DOM but clipped to the stale height. Restoring normal table
+ * sizing for our grouped tables fixes it. Specificity (0,2,0) beats Radix's :where() rule without
+ * !important; harmless in Chromium/Firefox. See components/GroupedTable.tsx.
+ */
+.grouped-table .rt-TableRootTable {
+  overflow: visible;
+  height: auto;
+}
+
 /* Print styles: only the element marked .print-area shows when printing (ID cards, tags). */
 @media print {
   body * {
