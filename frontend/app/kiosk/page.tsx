@@ -155,7 +155,6 @@ function IdlePrompt({
     <Card size="4">
       <Flex direction="column" align="center" gap="4" py="6">
         <Heading size="6">Scan your ID card to begin</Heading>
-        <Text color="gray">A barcode scanner works anywhere on this page — no need to click.</Text>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -167,7 +166,7 @@ function IdlePrompt({
         >
           <Flex gap="2">
             <TextField.Root
-              placeholder="…or type a barcode for testing"
+              placeholder="…or type your ID number"
               value={manual}
               onChange={(e) => setManual(e.target.value)}
               style={{ minWidth: 280 }}
