@@ -19,6 +19,7 @@ import {
 } from "@radix-ui/themes";
 import { PlusIcon } from "@radix-ui/react-icons";
 
+import { AdminNav, AppShell, LogoutButton } from "@/components/AppShell";
 import { BarcodeLabelDialog } from "@/components/BarcodeLabelDialog";
 import { DataTable } from "@/components/DataTable";
 import { ConfirmButton, DialogFooter, DialogHeader } from "@/components/Dialogs";
@@ -71,7 +72,7 @@ export default function InventoryAdminPage() {
   }, [loadItems]);
 
   return (
-    <Box>
+    <AppShell nav={<AdminNav />} actions={<LogoutButton />} title="Inventory">
       <Flex justify="between" align="center" mb="4" gap="3" wrap="wrap">
         <SegmentedControl.Root value={tab} onValueChange={(v) => setTab(v as "items" | "types")}>
           <SegmentedControl.Item value="items">Items</SegmentedControl.Item>
@@ -179,7 +180,7 @@ export default function InventoryAdminPage() {
           }}
         />
       )}
-    </Box>
+    </AppShell>
   );
 }
 

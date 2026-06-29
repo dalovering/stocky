@@ -19,6 +19,7 @@ import {
 } from "@radix-ui/themes";
 import { PlusIcon } from "@radix-ui/react-icons";
 
+import { AdminNav, AppShell, LogoutButton } from "@/components/AppShell";
 import { BarcodeLabelDialog } from "@/components/BarcodeLabelDialog";
 import { DataTable } from "@/components/DataTable";
 import { ConfirmButton, DialogFooter, DialogHeader } from "@/components/Dialogs";
@@ -56,6 +57,7 @@ export default function UsersPage() {
   }, [loadUsers]);
 
   return (
+    <AppShell nav={<AdminNav />} actions={<LogoutButton />} title="Users &amp; Groups">
     <Grid columns={{ initial: "1", md: "260px 1fr" }} gap="5">
       {/* Group tree sidebar */}
       <Card>
@@ -157,6 +159,7 @@ export default function UsersPage() {
         />
       )}
     </Grid>
+    </AppShell>
   );
 }
 

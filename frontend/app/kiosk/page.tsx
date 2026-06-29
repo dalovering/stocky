@@ -6,7 +6,6 @@ import {
   Button,
   Callout,
   Card,
-  Container,
   Dialog,
   Flex,
   Grid,
@@ -15,9 +14,9 @@ import {
   TextField,
 } from "@radix-ui/themes";
 
+import { AppShell, BackLink } from "@/components/AppShell";
 import { BarcodeScannerProvider } from "@/components/BarcodeScannerProvider";
 import { StatusBadge } from "@/components/HistoryList";
-import { BackLink, PageHeader } from "@/components/PageShell";
 import { api, ApiError } from "@/lib/api";
 import type { Item, UserDetail } from "@/lib/types";
 
@@ -101,12 +100,13 @@ export default function KioskPage() {
   }, [resetIdle, user]);
 
   return (
-    <Container size="3" p="5">
+    <AppShell
+      title="Check-in / Check-out"
+      action={<BackLink href="/">Exit</BackLink>}
+      containerSize="3"
+    >
       {/* Global scanner — works with no input focused. */}
       <BarcodeScannerProvider onScan={handleScan} />
-
-      <PageHeader title="Check-in / Check-out" action={<BackLink href="/">Exit</BackLink>} />
-
 
       {toast && (
         <Box mb="4">
@@ -142,7 +142,7 @@ export default function KioskPage() {
           onError={(msg) => flash({ kind: "error", text: msg })}
         />
       )}
-    </Container>
+    </AppShell>
   );
 }
 
