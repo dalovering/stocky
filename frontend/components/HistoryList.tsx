@@ -1,9 +1,10 @@
 "use client";
 
-// Renders an item's (or user's) event history as a simple timeline.
+// Renders an item's (or user's) event history as a table.
 
-import { Badge, Flex, Text } from "@radix-ui/themes";
+import { Badge, Text } from "@radix-ui/themes";
 
+import { DataTable } from "@/components/DataTable";
 import type { EventType, ItemEvent } from "@/lib/types";
 
 const LABEL: Record<EventType, string> = {
@@ -27,32 +28,35 @@ const COLOR: Record<EventType, "gray" | "green" | "blue" | "orange" | "red"> = {
 };
 
 export function HistoryList({ events }: { events: ItemEvent[] }) {
-  if (events.length === 0) {
-    return (
-      <Text color="gray" size="2">
-        No history yet.
-      </Text>
-    );
-  }
   return (
-    <Flex direction="column" gap="2">
-      {events.map((e) => (
-        <Flex key={e.id} align="center" gap="3" justify="between">
-          <Flex align="center" gap="2">
-            <Badge color={COLOR[e.event_type]}>{LABEL[e.event_type]}</Badge>
-            {e.user_name && <Text size="2">{e.user_name}</Text>}
-            {e.note && (
-              <Text size="2" color="gray">
-                — {e.note}
-              </Text>
-            )}
-          </Flex>
-          <Text size="1" color="gray">
-            {new Date(e.created_at).toLocaleString()}
-          </Text>
-        </Flex>
-      ))}
-    </Flex>
+    <DataTable
+      rows={events}
+      rowKey={(e) => e.id}
+      empty="No history yet."
+      columns={[
+        {
+          header: "Action",
+          cell: (e) => <Badge color={COLOR[e.event_type]}>{LABEL[e.event_type]}</Badge>,
+        },
+        { header: "User", cell: (e) => e.user_name ?? "—" },
+        {
+          header: "Note",
+          cell: (e) => (
+            <Text size="2" color="gray">
+              {e.note ?? "—"}
+            </Text>
+          ),
+        },
+        {
+          header: "When",
+          cell: (e) => (
+            <Text size="1" color="gray" style={{ whiteSpace: "nowrap" }}>
+              {new Date(e.created_at).toLocaleString()}
+            </Text>
+          ),
+        },
+      ]}
+    />
   );
 }
 
