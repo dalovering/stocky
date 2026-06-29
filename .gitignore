@@ -2,6 +2,8 @@
 .env
 .env.local
 *.local
+scratch/
+tmp/
 
 # ---- Python ----
 __pycache__/
