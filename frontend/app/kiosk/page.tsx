@@ -12,6 +12,7 @@ import {
   Heading,
   Separator,
   Text,
+  TextArea,
   TextField,
 } from "@radix-ui/themes";
 
@@ -297,6 +298,9 @@ function ItemActionModal({
   onError: (message: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  // When set, the modal shows a note field to accompany a damage/loss report.
+  const [reporting, setReporting] = useState<"damage" | "loss" | null>(null);
+  const [note, setNote] = useState("");
   const heldByThisUser = item.holder_user_id === user.id;
   const heldByOther = item.holder_user_id != null && !heldByThisUser;
 
@@ -328,63 +332,112 @@ function ItemActionModal({
           </Callout.Root>
         )}
 
-        <Flex direction="column" gap="2" mt="2">
-          {!item.holder_user_id && item.status === "Available" && (
-            <Button
-              disabled={busy}
-              onClick={() => run(() => api.kioskCheckout(item.id, user.id), `Checked out ${item.name}.`)}
-            >
-              Check out to {user.name}
-            </Button>
-          )}
-          {heldByThisUser && (
-            <Button
-              disabled={busy}
-              onClick={() => run(() => api.kioskCheckin(item.id, user.id), `Checked in ${item.name}.`)}
-            >
-              Check in
-            </Button>
-          )}
-          {heldByOther && (
-            <Button
-              disabled={busy}
-              color="amber"
-              onClick={() =>
-                run(() => api.kioskCheckin(item.id, item.holder_user_id!), `Checked in ${item.name}.`)
-              }
-            >
-              Force check-in (return for {item.holder_name})
-            </Button>
-          )}
-          <Button
-            disabled={busy}
-            variant="soft"
-            color="orange"
-            onClick={() =>
-              run(() => api.kioskReportDamage(item.id, user.id), `Reported ${item.name} damaged.`)
-            }
-          >
-            Report damage
-          </Button>
-          <Button
-            disabled={busy}
-            variant="soft"
-            color="red"
-            onClick={() =>
-              run(() => api.kioskReportLoss(item.id, user.id), `Reported ${item.name} lost.`)
-            }
-          >
-            Report loss
-          </Button>
-        </Flex>
+        {reporting ? (
+          <Flex direction="column" gap="3" mt="2">
+            <Text size="2" weight="medium">
+              {reporting === "loss" ? "Report this item lost" : "Report this item damaged"}
+            </Text>
+            <TextArea
+              placeholder="Add a note (optional) — e.g. screen cracked, left on the bus…"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              autoFocus
+            />
+            <Flex justify="end" gap="2">
+              <Button
+                variant="soft"
+                color="gray"
+                disabled={busy}
+                onClick={() => {
+                  setReporting(null);
+                  setNote("");
+                }}
+              >
+                Back
+              </Button>
+              <Button
+                disabled={busy}
+                color={reporting === "loss" ? "red" : "orange"}
+                onClick={() =>
+                  run(
+                    () =>
+                      reporting === "loss"
+                        ? api.kioskReportLoss(item.id, user.id, note.trim() || undefined)
+                        : api.kioskReportDamage(item.id, user.id, note.trim() || undefined),
+                    reporting === "loss"
+                      ? `Reported ${item.name} lost.`
+                      : `Reported ${item.name} damaged.`,
+                  )
+                }
+              >
+                {reporting === "loss" ? "Report loss" : "Report damage"}
+              </Button>
+            </Flex>
+          </Flex>
+        ) : (
+          <>
+            <Flex direction="column" gap="2" mt="2">
+              {!item.holder_user_id && item.status === "Available" && (
+                <Button
+                  disabled={busy}
+                  onClick={() =>
+                    run(() => api.kioskCheckout(item.id, user.id), `Checked out ${item.name}.`)
+                  }
+                >
+                  Check out to {user.name}
+                </Button>
+              )}
+              {heldByThisUser && (
+                <Button
+                  disabled={busy}
+                  onClick={() =>
+                    run(() => api.kioskCheckin(item.id, user.id), `Checked in ${item.name}.`)
+                  }
+                >
+                  Check in
+                </Button>
+              )}
+              {heldByOther && (
+                <Button
+                  disabled={busy}
+                  color="amber"
+                  onClick={() =>
+                    run(
+                      () => api.kioskCheckin(item.id, item.holder_user_id!),
+                      `Checked in ${item.name}.`,
+                    )
+                  }
+                >
+                  Force check-in (return for {item.holder_name})
+                </Button>
+              )}
+              <Button
+                disabled={busy}
+                variant="soft"
+                color="orange"
+                onClick={() => setReporting("damage")}
+              >
+                Report damage
+              </Button>
+              <Button
+                disabled={busy}
+                variant="soft"
+                color="red"
+                onClick={() => setReporting("loss")}
+              >
+                Report loss
+              </Button>
+            </Flex>
 
-        <Flex justify="end" mt="4">
-          <Dialog.Close>
-            <Button variant="soft" color="gray">
-              Close
-            </Button>
-          </Dialog.Close>
-        </Flex>
+            <Flex justify="end" mt="4">
+              <Dialog.Close>
+                <Button variant="soft" color="gray">
+                  Close
+                </Button>
+              </Dialog.Close>
+            </Flex>
+          </>
+        )}
       </Dialog.Content>
     </Dialog.Root>
   );

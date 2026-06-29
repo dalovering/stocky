@@ -101,6 +101,21 @@ async def test_report_loss_sets_status(admin_client, fixtures):
 
 
 @pytest.mark.asyncio
+async def test_report_damage_records_note(admin_client, fixtures):
+    """A note submitted with a damage report is persisted and surfaced in history."""
+    user, item = fixtures["user"], fixtures["item"]
+    resp = await admin_client.post(
+        "/api/kiosk/report-damage",
+        json={"item_id": item["id"], "user_id": user["id"], "note": "screen cracked"},
+    )
+    assert resp.status_code == 200
+
+    events = (await admin_client.get(f"/api/kiosk/user/{user['id']}/events")).json()
+    damage = next(e for e in events if e["event_type"] == "damage_report")
+    assert damage["note"] == "screen cracked"
+
+
+@pytest.mark.asyncio
 async def test_unknown_barcode(admin_client):
     resp = (await admin_client.post("/api/kiosk/scan", json={"barcode": "ZZZZ"})).json()
     assert resp["action"] == "unknown"
