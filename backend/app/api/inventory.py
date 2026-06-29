@@ -5,13 +5,14 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import distinct, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
 from app.models import Item, ItemType
 from app.models.enums import ItemStatus
 from app.schemas.inventory import EventRead, InventorySummaryRow, ItemRead
+from app.services.queries import distinct_locations_query, item_filter_query
 from app.services.serialize import serialize_event, serialize_item
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
@@ -25,14 +26,8 @@ async def browse_items(
     session: AsyncSession = Depends(get_session),
 ) -> list[ItemRead]:
     """Search/filter items. Read-only — there are no write routes in this module."""
-    stmt = select(Item)
-    if type_id is not None:
-        stmt = stmt.where(Item.item_type_id == type_id)
-    if location:
-        stmt = stmt.where(Item.location == location)
-    if q:
-        stmt = stmt.where(Item.name.ilike(f"%{q}%"))
-    items = list((await session.execute(stmt.order_by(Item.name))).scalars().all())
+    stmt = item_filter_query(q, type_id, location)
+    items = list((await session.execute(stmt)).scalars().all())
     return [await serialize_item(session, item) for item in items]
 
 
@@ -60,9 +55,7 @@ async def item_history(
 
 @router.get("/locations", response_model=list[str])
 async def locations(session: AsyncSession = Depends(get_session)) -> list[str]:
-    result = await session.execute(
-        select(distinct(Item.location)).where(Item.location.is_not(None)).order_by(Item.location)
-    )
+    result = await session.execute(distinct_locations_query())
     return [row[0] for row in result.all()]
 
 

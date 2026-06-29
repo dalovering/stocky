@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_admin
+from app.api.deps import ensure_unique_barcode, require_admin
 from app.core.db import get_session
 from app.models import Event, EventType, Item, ItemType
 from app.schemas.inventory import (
@@ -21,6 +21,7 @@ from app.schemas.inventory import (
     ItemUpdate,
 )
 from app.services import barcode as barcode_svc
+from app.services.queries import distinct_locations_query, item_filter_query
 from app.services.serialize import serialize_event, serialize_item
 
 router = APIRouter(
@@ -33,9 +34,7 @@ router = APIRouter(
 # ---------------------------------------------------------------------------
 @router.get("/locations", response_model=list[str])
 async def list_locations(session: AsyncSession = Depends(get_session)) -> list[str]:
-    result = await session.execute(
-        select(distinct(Item.location)).where(Item.location.is_not(None)).order_by(Item.location)
-    )
+    result = await session.execute(distinct_locations_query())
     return [row[0] for row in result.all()]
 
 
@@ -121,17 +120,7 @@ async def delete_item_type(
 # Items
 # ---------------------------------------------------------------------------
 async def _unique_item_barcode(session: AsyncSession, proposed: str | None) -> str:
-    if proposed:
-        existing = await session.execute(select(Item).where(Item.barcode == proposed))
-        if existing.scalar_one_or_none() is not None:
-            raise HTTPException(status.HTTP_409_CONFLICT, "Barcode already in use.")
-        return proposed
-    for _ in range(10):
-        code = barcode_svc.generate_item_code()
-        existing = await session.execute(select(Item).where(Item.barcode == code))
-        if existing.scalar_one_or_none() is None:
-            return code
-    raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Could not allocate a barcode.")
+    return await ensure_unique_barcode(session, Item, barcode_svc.ITEM_PREFIX, proposed)
 
 
 @router.get("/items", response_model=list[ItemRead])
@@ -141,14 +130,8 @@ async def list_items(
     location: str | None = None,
     session: AsyncSession = Depends(get_session),
 ) -> list[ItemRead]:
-    stmt = select(Item)
-    if type_id is not None:
-        stmt = stmt.where(Item.item_type_id == type_id)
-    if location:
-        stmt = stmt.where(Item.location == location)
-    if q:
-        stmt = stmt.where(Item.name.ilike(f"%{q}%"))
-    items = list((await session.execute(stmt.order_by(Item.name))).scalars().all())
+    stmt = item_filter_query(q, type_id, location)
+    items = list((await session.execute(stmt)).scalars().all())
     return [await serialize_item(session, item) for item in items]
 
 

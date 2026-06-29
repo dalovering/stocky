@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_admin
+from app.api.deps import ensure_unique_barcode, require_admin
 from app.core.db import get_session
 from app.models import Event, Group, User
 from app.schemas.group import GroupCreate, GroupRead, GroupTree, GroupUpdate
@@ -91,18 +91,7 @@ async def delete_group(group_id: uuid.UUID, session: AsyncSession = Depends(get_
 # Users
 # ---------------------------------------------------------------------------
 async def _unique_user_barcode(session: AsyncSession, proposed: str | None) -> str:
-    if proposed:
-        existing = await session.execute(select(User).where(User.barcode == proposed))
-        if existing.scalar_one_or_none() is not None:
-            raise HTTPException(status.HTTP_409_CONFLICT, "Barcode already in use.")
-        return proposed
-    # Generate until unique.
-    for _ in range(10):
-        code = barcode_svc.generate_user_code()
-        existing = await session.execute(select(User).where(User.barcode == code))
-        if existing.scalar_one_or_none() is None:
-            return code
-    raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Could not allocate a barcode.")
+    return await ensure_unique_barcode(session, User, barcode_svc.USER_PREFIX, proposed)
 
 
 @router.get("/users", response_model=list[UserRead])
