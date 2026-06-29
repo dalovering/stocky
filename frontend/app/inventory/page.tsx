@@ -12,16 +12,15 @@ import {
   Flex,
   Grid,
   Heading,
-  IconButton,
   SegmentedControl,
   Select,
   Separator,
   Text,
   TextField,
 } from "@radix-ui/themes";
-import { Cross2Icon } from "@radix-ui/react-icons";
 
 import { DataTable } from "@/components/DataTable";
+import { DialogHeader } from "@/components/Dialogs";
 import { HistoryList, StatusBadge } from "@/components/HistoryList";
 import { api } from "@/lib/api";
 import type { InventorySummaryRow, Item, ItemEvent } from "@/lib/types";
@@ -152,14 +151,7 @@ function ItemDetail({ item, onClose }: { item: Item; onClose: () => void }) {
   return (
     <Dialog.Root open onOpenChange={(o) => !o && onClose()}>
       <Dialog.Content maxWidth="540px">
-        <Flex justify="between" align="start">
-          <Dialog.Title>{item.name}</Dialog.Title>
-          <Dialog.Close>
-            <IconButton variant="ghost" color="gray">
-              <Cross2Icon />
-            </IconButton>
-          </Dialog.Close>
-        </Flex>
+        <DialogHeader title={item.name} />
         <Flex gap="2" align="center">
           <StatusBadge status={item.status} />
           <Text size="2" color="gray">

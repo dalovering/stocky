@@ -17,10 +17,11 @@ import {
   Text,
   TextField,
 } from "@radix-ui/themes";
-import { Cross2Icon, PlusIcon } from "@radix-ui/react-icons";
+import { PlusIcon } from "@radix-ui/react-icons";
 
 import { BarcodeLabelDialog } from "@/components/BarcodeLabelDialog";
 import { DataTable } from "@/components/DataTable";
+import { ConfirmButton, DialogFooter, DialogHeader } from "@/components/Dialogs";
 import { Field } from "@/components/Field";
 import { HistoryList } from "@/components/HistoryList";
 import { api } from "@/lib/api";
@@ -341,14 +342,7 @@ function UserDialog({
             />
           </Field>
         </Flex>
-        <Flex gap="3" mt="4" justify="end">
-          <Button variant="soft" color="gray" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={busy || !name} onClick={save}>
-            Save
-          </Button>
-        </Flex>
+        <DialogFooter onCancel={onClose} onSave={save} saveDisabled={busy || !name} />
       </Dialog.Content>
     </Dialog.Root>
   );
@@ -378,7 +372,6 @@ function UserDetailDialog({
   }
 
   async function remove() {
-    if (!confirm(`Delete ${user.name}? This cannot be undone.`)) return;
     await api.deleteUser(user.id);
     onClose();
   }
@@ -386,14 +379,7 @@ function UserDetailDialog({
   return (
     <Dialog.Root open onOpenChange={(o) => !o && onClose()}>
       <Dialog.Content maxWidth="560px">
-        <Flex justify="between" align="start">
-          <Dialog.Title>{user.name}</Dialog.Title>
-          <Dialog.Close>
-            <IconButton variant="ghost" color="gray">
-              <Cross2Icon />
-            </IconButton>
-          </Dialog.Close>
-        </Flex>
+        <DialogHeader title={user.name} />
         <Text size="2" color="gray">
           {user.group_name ?? "No group"} · {user.barcode}
         </Text>
@@ -408,9 +394,12 @@ function UserDetailDialog({
           <Button size="1" variant="soft" onClick={regenerate}>
             Regenerate barcode
           </Button>
-          <Button size="1" variant="soft" color="red" onClick={remove}>
-            Delete
-          </Button>
+          <ConfirmButton
+            label="Delete"
+            title={`Delete ${user.name}?`}
+            description="This removes the user and their history. This cannot be undone."
+            onConfirm={remove}
+          />
         </Flex>
 
         <Separator my="4" size="4" />
@@ -505,14 +494,7 @@ function GroupDialog({
             </Select.Root>
           </label>
         </Flex>
-        <Flex gap="3" mt="4" justify="end">
-          <Button variant="soft" color="gray" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={busy || !name} onClick={save}>
-            Save
-          </Button>
-        </Flex>
+        <DialogFooter onCancel={onClose} onSave={save} saveDisabled={busy || !name} />
       </Dialog.Content>
     </Dialog.Root>
   );

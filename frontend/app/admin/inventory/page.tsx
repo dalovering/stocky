@@ -287,14 +287,7 @@ function ItemTypeDialog({
             <TextField.Root value={form.url} onChange={(e) => set("url", e.target.value)} />
           </Field>
         </Flex>
-        <Flex gap="3" mt="4" justify="end">
-          <Button variant="soft" color="gray" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={busy || !form.name} onClick={save}>
-            Save
-          </Button>
-        </Flex>
+        <DialogFooter onCancel={onClose} onSave={save} saveDisabled={busy || !form.name} />
       </Dialog.Content>
     </Dialog.Root>
   );
@@ -504,14 +497,11 @@ function ItemDialog({
             </Field>
           )}
         </Flex>
-        <Flex gap="3" mt="4" justify="end">
-          <Button variant="soft" color="gray" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={busy || !form.name || !form.item_type_id} onClick={save}>
-            Save
-          </Button>
-        </Flex>
+        <DialogFooter
+          onCancel={onClose}
+          onSave={save}
+          saveDisabled={busy || !form.name || !form.item_type_id}
+        />
       </Dialog.Content>
     </Dialog.Root>
   );
