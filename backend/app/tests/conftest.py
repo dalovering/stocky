@@ -30,7 +30,7 @@ def postgres_url() -> str:
 
 
 @pytest_asyncio.fixture
-async def session(postgres_url: str) -> AsyncGenerator[AsyncSession, None]:
+async def session(postgres_url: str) -> AsyncGenerator[AsyncSession]:
     """Fresh schema per test (create_all/drop_all) for isolation, on the real database."""
     engine = create_async_engine(postgres_url)
     async with engine.begin() as conn:
@@ -46,8 +46,8 @@ async def session(postgres_url: str) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest_asyncio.fixture
-async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    async def _override_session() -> AsyncGenerator[AsyncSession, None]:
+async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient]:
+    async def _override_session() -> AsyncGenerator[AsyncSession]:
         yield session
 
     app.dependency_overrides[get_session] = _override_session
