@@ -25,6 +25,15 @@ const IDLE_MS = 60_000;
 
 type Toast = { kind: "info" | "error"; text: string } | null;
 
+/** A compact transient banner for scan results; sized to sit inline within a header row. */
+function ToastCallout({ toast }: { toast: NonNullable<Toast> }) {
+  return (
+    <Callout.Root size="1" color={toast.kind === "error" ? "red" : "teal"}>
+      <Callout.Text>{toast.text}</Callout.Text>
+    </Callout.Root>
+  );
+}
+
 export default function KioskPage() {
   const [user, setUser] = useState<UserDetail | null>(null);
   const [toast, setToast] = useState<Toast>(null);
@@ -104,19 +113,12 @@ export default function KioskPage() {
       {/* Global scanner — works with no input focused. */}
       <BarcodeScannerProvider onScan={handleScan} />
 
-      {toast && (
-        <Box mb="4">
-          <Callout.Root color={toast.kind === "error" ? "red" : "teal"}>
-            <Callout.Text>{toast.text}</Callout.Text>
-          </Callout.Root>
-        </Box>
-      )}
-
       {!user ? (
-        <IdlePrompt manual={manual} setManual={setManual} onSubmit={handleScan} />
+        <IdlePrompt manual={manual} setManual={setManual} onSubmit={handleScan} toast={toast} />
       ) : (
         <UserPanel
           user={user}
+          toast={toast}
           onOpenItem={setModalItem}
           onComplete={() => {
             logout();
@@ -146,15 +148,18 @@ function IdlePrompt({
   manual,
   setManual,
   onSubmit,
+  toast,
 }: {
   manual: string;
   setManual: (v: string) => void;
   onSubmit: (code: string) => void;
+  toast: Toast;
 }) {
   return (
     <Card size="4">
       <Flex direction="column" align="center" gap="4" py="6">
         <Heading size="6">Scan your ID card to begin</Heading>
+        {toast && <ToastCallout toast={toast} />}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -181,20 +186,25 @@ function IdlePrompt({
 
 function UserPanel({
   user,
+  toast,
   onOpenItem,
   onComplete,
 }: {
   user: UserDetail;
+  toast: Toast;
   onOpenItem: (i: Item) => void;
   onComplete: () => void;
 }) {
   return (
     <Box>
-      <Flex justify="between" align="center" mb="3">
+      {/* The username sits left, Complete sits right; the toast pops up in the centered gap so a
+          scan result doesn't shift the items list below it. */}
+      <Flex justify="between" align="center" mb="3" gap="3">
         <Box>
           <Heading size="6">{user.name}</Heading>
           <Text color="gray">{user.group_name ?? "No group"}</Text>
         </Box>
+        {toast && <ToastCallout toast={toast} />}
         <Button size="3" onClick={onComplete}>
           Complete
         </Button>
