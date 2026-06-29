@@ -10,7 +10,6 @@ import {
   Flex,
   Grid,
   Heading,
-  IconButton,
   SegmentedControl,
   Select,
   Separator,
@@ -18,9 +17,11 @@ import {
   TextArea,
   TextField,
 } from "@radix-ui/themes";
-import { Cross2Icon, PlusIcon } from "@radix-ui/react-icons";
+import { PlusIcon } from "@radix-ui/react-icons";
 
 import { BarcodeLabelDialog } from "@/components/BarcodeLabelDialog";
+import { DataTable } from "@/components/DataTable";
+import { ConfirmButton, DialogFooter, DialogHeader } from "@/components/Dialogs";
 import { Field, isModified } from "@/components/Field";
 import { HistoryList, StatusBadge } from "@/components/HistoryList";
 import { PassiveSelect } from "@/components/PassiveSelect";
@@ -98,42 +99,19 @@ export default function InventoryAdminPage() {
       </Flex>
 
       {tab === "items" ? (
-        <Card>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ textAlign: "left" }}>
-                <Th>Name</Th>
-                <Th>Type</Th>
-                <Th>Location</Th>
-                <Th>Condition</Th>
-                <Th>Status</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((i) => (
-                <tr
-                  key={i.id}
-                  className="clickable"
-                  onClick={() => setDetailItem(i)}
-                  style={{ borderTop: "1px solid var(--gray-4)" }}
-                >
-                  <Td>{i.name}</Td>
-                  <Td>{i.item_type_name}</Td>
-                  <Td>{i.location ?? "—"}</Td>
-                  <Td>{i.condition}</Td>
-                  <Td>
-                    <StatusBadge status={i.status} />
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {items.length === 0 && (
-            <Box p="3">
-              <Text color="gray">No items yet.</Text>
-            </Box>
-          )}
-        </Card>
+        <DataTable
+          rows={items}
+          rowKey={(i) => i.id}
+          onRowClick={setDetailItem}
+          empty="No items yet."
+          columns={[
+            { header: "Name", cell: (i) => i.name },
+            { header: "Type", cell: (i) => i.item_type_name },
+            { header: "Location", cell: (i) => i.location ?? "—" },
+            { header: "Condition", cell: (i) => i.condition },
+            { header: "Status", cell: (i) => <StatusBadge status={i.status} /> },
+          ]}
+        />
       ) : (
         <Grid columns={{ initial: "1", sm: "2", lg: "3" }} gap="3">
           {types.map((t) => (
@@ -558,7 +536,6 @@ function ItemDetailDialog({
   }, [item.id]);
 
   async function remove() {
-    if (!confirm(`Delete ${item.name}? This removes its history too.`)) return;
     await api.deleteItem(item.id);
     onDeleted();
   }
@@ -566,14 +543,7 @@ function ItemDetailDialog({
   return (
     <Dialog.Root open onOpenChange={(o) => !o && onClose()}>
       <Dialog.Content maxWidth="560px">
-        <Flex justify="between" align="start">
-          <Dialog.Title>{item.name}</Dialog.Title>
-          <Dialog.Close>
-            <IconButton variant="ghost" color="gray">
-              <Cross2Icon />
-            </IconButton>
-          </Dialog.Close>
-        </Flex>
+        <DialogHeader title={item.name} />
         <Flex gap="2" align="center">
           <StatusBadge status={item.status} />
           <Text size="2" color="gray">
@@ -593,9 +563,12 @@ function ItemDetailDialog({
           <Button size="1" variant="soft" onClick={() => setPrintOpen(true)}>
             Print tag
           </Button>
-          <Button size="1" variant="soft" color="red" onClick={remove}>
-            Delete
-          </Button>
+          <ConfirmButton
+            label="Delete"
+            title={`Delete ${item.name}?`}
+            description="This removes the item and its history. This cannot be undone."
+            onConfirm={remove}
+          />
         </Flex>
 
         <Separator my="4" size="4" />
@@ -615,23 +588,5 @@ function ItemDetailDialog({
         />
       </Dialog.Content>
     </Dialog.Root>
-  );
-}
-
-function Th({ children }: { children: React.ReactNode }) {
-  return (
-    <th style={{ padding: "8px 12px" }}>
-      <Text size="1" color="gray" weight="medium">
-        {children}
-      </Text>
-    </th>
-  );
-}
-
-function Td({ children }: { children: React.ReactNode }) {
-  return (
-    <td style={{ padding: "8px 12px" }}>
-      <Text size="2">{children}</Text>
-    </td>
   );
 }

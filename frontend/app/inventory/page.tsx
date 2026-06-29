@@ -21,6 +21,7 @@ import {
 } from "@radix-ui/themes";
 import { Cross2Icon } from "@radix-ui/react-icons";
 
+import { DataTable } from "@/components/DataTable";
 import { HistoryList, StatusBadge } from "@/components/HistoryList";
 import { api } from "@/lib/api";
 import type { InventorySummaryRow, Item, ItemEvent } from "@/lib/types";
@@ -123,34 +124,18 @@ export default function InventoryPage() {
           {items.length === 0 && <Text color="gray">No items found.</Text>}
         </Grid>
       ) : (
-        <Card>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ textAlign: "left" }}>
-                <Th>Item type</Th>
-                <Th>Location</Th>
-                <Th>Total</Th>
-                <Th>Available</Th>
-                <Th>On loan</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {summary.map((r, idx) => (
-                <tr key={idx} style={{ borderTop: "1px solid var(--gray-4)" }}>
-                  <Td>{r.item_type_name}</Td>
-                  <Td>{r.location ?? "—"}</Td>
-                  <Td>{r.total}</Td>
-                  <Td>
-                    <Text color="green">{r.available}</Text>
-                  </Td>
-                  <Td>
-                    <Text color="blue">{r.on_loan}</Text>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+        <DataTable
+          rows={summary}
+          rowKey={(_, idx) => idx}
+          empty="No items found."
+          columns={[
+            { header: "Item type", cell: (r) => r.item_type_name },
+            { header: "Location", cell: (r) => r.location ?? "—" },
+            { header: "Total", cell: (r) => r.total },
+            { header: "Available", cell: (r) => <Text color="green">{r.available}</Text> },
+            { header: "On loan", cell: (r) => <Text color="blue">{r.on_loan}</Text> },
+          ]}
+        />
       )}
 
       {detail && <ItemDetail item={detail} onClose={() => setDetail(null)} />}
@@ -199,23 +184,5 @@ function ItemDetail({ item, onClose }: { item: Item; onClose: () => void }) {
         <HistoryList events={events} />
       </Dialog.Content>
     </Dialog.Root>
-  );
-}
-
-function Th({ children }: { children: React.ReactNode }) {
-  return (
-    <th style={{ padding: "8px 12px" }}>
-      <Text size="1" color="gray" weight="medium">
-        {children}
-      </Text>
-    </th>
-  );
-}
-
-function Td({ children }: { children: React.ReactNode }) {
-  return (
-    <td style={{ padding: "8px 12px" }}>
-      <Text size="2">{children}</Text>
-    </td>
   );
 }

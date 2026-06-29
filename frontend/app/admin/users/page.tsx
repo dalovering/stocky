@@ -20,6 +20,7 @@ import {
 import { Cross2Icon, PlusIcon } from "@radix-ui/react-icons";
 
 import { BarcodeLabelDialog } from "@/components/BarcodeLabelDialog";
+import { DataTable } from "@/components/DataTable";
 import { Field } from "@/components/Field";
 import { HistoryList } from "@/components/HistoryList";
 import { api } from "@/lib/api";
@@ -230,37 +231,25 @@ function GroupTreeNode({
 
 function UserTable({ users, onOpen }: { users: UserRead[]; onOpen: (u: UserRead) => void }) {
   return (
-    <Card>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr style={{ textAlign: "left" }}>
-            <Th>Name</Th>
-            <Th>Group</Th>
-            <Th>Barcode</Th>
-            <Th>On loan</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((u) => (
-            <tr
-              key={u.id}
-              className="clickable"
-              onClick={() => onOpen(u)}
-              style={{ borderTop: "1px solid var(--gray-4)" }}
-            >
-              <Td>{u.name}</Td>
-              <Td>{u.group_name ?? "—"}</Td>
-              <Td>
-                <Text size="1" color="gray">
-                  {u.barcode}
-                </Text>
-              </Td>
-              <Td>{u.loan_count}</Td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Card>
+    <DataTable
+      rows={users}
+      rowKey={(u) => u.id}
+      onRowClick={onOpen}
+      empty="No users yet."
+      columns={[
+        { header: "Name", cell: (u) => u.name },
+        { header: "Group", cell: (u) => u.group_name ?? "—" },
+        {
+          header: "Barcode",
+          cell: (u) => (
+            <Text size="1" color="gray">
+              {u.barcode}
+            </Text>
+          ),
+        },
+        { header: "On loan", cell: (u) => u.loan_count },
+      ]}
+    />
   );
 }
 
@@ -526,23 +515,5 @@ function GroupDialog({
         </Flex>
       </Dialog.Content>
     </Dialog.Root>
-  );
-}
-
-function Th({ children }: { children: React.ReactNode }) {
-  return (
-    <th style={{ padding: "8px 12px" }}>
-      <Text size="1" color="gray" weight="medium">
-        {children}
-      </Text>
-    </th>
-  );
-}
-
-function Td({ children }: { children: React.ReactNode }) {
-  return (
-    <td style={{ padding: "8px 12px" }}>
-      <Text size="2">{children}</Text>
-    </td>
   );
 }
