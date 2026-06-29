@@ -1,13 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   Badge,
   Box,
-  Button,
   Card,
-  Container,
   Dialog,
   Flex,
   Grid,
@@ -21,6 +18,7 @@ import {
 
 import { DataTable } from "@/components/DataTable";
 import { DialogHeader } from "@/components/Dialogs";
+import { BackLink, PublicShell } from "@/components/PageShell";
 import { HistoryList, StatusBadge } from "@/components/HistoryList";
 import { api } from "@/lib/api";
 import type { InventorySummaryRow, Item, ItemEvent } from "@/lib/types";
@@ -50,16 +48,7 @@ export default function InventoryPage() {
   }, [load]);
 
   return (
-    <Container size="4" p="5">
-      <Flex justify="between" align="center" mb="4">
-        <Heading size="7">Inventory</Heading>
-        <Link href="/">
-          <Button variant="ghost" color="gray">
-            Home
-          </Button>
-        </Link>
-      </Flex>
-
+    <PublicShell title="Inventory" action={<BackLink href="/">Home</BackLink>}>
       <Flex justify="between" align="center" mb="3" gap="3" wrap="wrap">
         <Flex gap="3" align="center" wrap="wrap">
           <TextField.Root
@@ -138,7 +127,7 @@ export default function InventoryPage() {
       )}
 
       {detail && <ItemDetail item={detail} onClose={() => setDetail(null)} />}
-    </Container>
+    </PublicShell>
   );
 }
 

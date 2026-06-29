@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Box,
@@ -18,6 +17,7 @@ import {
 
 import { BarcodeScannerProvider } from "@/components/BarcodeScannerProvider";
 import { StatusBadge } from "@/components/HistoryList";
+import { BackLink, PageHeader } from "@/components/PageShell";
 import { api, ApiError } from "@/lib/api";
 import type { Item, UserDetail } from "@/lib/types";
 
@@ -105,14 +105,8 @@ export default function KioskPage() {
       {/* Global scanner — works with no input focused. */}
       <BarcodeScannerProvider onScan={handleScan} />
 
-      <Flex justify="between" align="center" mb="4">
-        <Heading size="7">Check-in / Check-out</Heading>
-        <Link href="/">
-          <Button variant="ghost" color="gray">
-            Exit
-          </Button>
-        </Link>
-      </Flex>
+      <PageHeader title="Check-in / Check-out" action={<BackLink href="/">Exit</BackLink>} />
+
 
       {toast && (
         <Box mb="4">
