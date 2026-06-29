@@ -104,3 +104,21 @@ async def test_report_loss_sets_status(admin_client, fixtures):
 async def test_unknown_barcode(admin_client):
     resp = (await admin_client.post("/api/kiosk/scan", json={"barcode": "ZZZZ"})).json()
     assert resp["action"] == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_kiosk_user_events_most_recent_first(admin_client, fixtures):
+    """The kiosk history endpoint returns the user's events newest-first."""
+    user, item = fixtures["user"], fixtures["item"]
+    await admin_client.post(
+        "/api/kiosk/checkout", json={"item_id": item["id"], "user_id": user["id"]}
+    )
+    await admin_client.post(
+        "/api/kiosk/checkin", json={"item_id": item["id"], "user_id": user["id"]}
+    )
+
+    events = (await admin_client.get(f"/api/kiosk/user/{user['id']}/events")).json()
+    types = [e["event_type"] for e in events]
+    # The check-in is the latest action, so it comes first.
+    assert types == ["checkin", "checkout"]
+    assert events[0]["created_at"] >= events[1]["created_at"]

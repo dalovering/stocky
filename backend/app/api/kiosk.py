@@ -9,8 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.models import Item, User
-from app.schemas.inventory import ItemRead
+from app.models import Event, Item, User
+from app.schemas.inventory import EventRead, ItemRead
 from app.schemas.kiosk import (
     ItemActionRequest,
     ScanAction,
@@ -20,7 +20,7 @@ from app.schemas.kiosk import (
 )
 from app.schemas.user import UserDetail
 from app.services import events as event_svc
-from app.services.serialize import serialize_item, serialize_user_detail
+from app.services.serialize import serialize_event, serialize_item, serialize_user_detail
 from app.services.status import latest_checkout_holder
 
 router = APIRouter(prefix="/api/kiosk", tags=["kiosk"])
@@ -172,3 +172,14 @@ async def kiosk_user(
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found.")
     return await serialize_user_detail(session, user)
+
+
+@router.get("/user/{user_id}/events", response_model=list[EventRead])
+async def kiosk_user_events(
+    user_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> list[EventRead]:
+    """The logged-in user's event history at the kiosk, most recent first."""
+    result = await session.execute(
+        select(Event).where(Event.user_id == user_id).order_by(Event.created_at.desc())
+    )
+    return [await serialize_event(session, e) for e in result.scalars().all()]
