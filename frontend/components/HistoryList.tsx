@@ -31,6 +31,16 @@ const COLOR: Record<EventType, "gray" | "green" | "blue" | "orange" | "red"> = {
   restore: "green",
 };
 
+export const EVENT_TYPE_OPTIONS = (Object.keys(LABEL) as EventType[]).map((value) => ({
+  value,
+  label: LABEL[value],
+}));
+
+/** The coloured badge for one event type — reused by item/user history and the admin history log. */
+export function EventBadge({ type }: { type: EventType }) {
+  return <Badge color={COLOR[type]}>{LABEL[type]}</Badge>;
+}
+
 /**
  * The event history of one `subject`. When it's a user's history every row shares that user, so we
  * show the *item* column and drop the redundant user column; for an item's history it's the
@@ -46,7 +56,7 @@ export function HistoryList({
   const columns: Column<ItemEvent>[] = [
     {
       header: "Action",
-      cell: (e) => <Badge color={COLOR[e.event_type]}>{LABEL[e.event_type]}</Badge>,
+      cell: (e) => <EventBadge type={e.event_type} />,
     },
     subject === "user"
       ? { header: "Item", cell: (e) => e.item_name ?? "—" }

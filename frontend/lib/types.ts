@@ -20,12 +20,7 @@ export type EventType =
 export const CONDITIONS: Condition[] = ["On order", "New", "Good", "Fair", "Worn", "Damaged"];
 
 // Statuses an admin can set directly (Checked out is loan-driven, not settable).
-export const SETTABLE_STATUSES: ItemStatus[] = [
-  "Available",
-  "Unavailable",
-  "Lost",
-  "Discarded",
-];
+export const SETTABLE_STATUSES: ItemStatus[] = ["Available", "Unavailable", "Lost", "Discarded"];
 
 export interface Page<T> {
   items: T[];
@@ -126,12 +121,7 @@ export interface InventorySummaryRow {
 }
 
 export type ScanKind = "user" | "item" | "unknown";
-export type ScanAction =
-  | "login"
-  | "checked_out"
-  | "checked_in"
-  | "open_modal"
-  | "unknown";
+export type ScanAction = "login" | "checked_out" | "checked_in" | "open_modal" | "unknown";
 
 export interface ScanResponse {
   kind: ScanKind;

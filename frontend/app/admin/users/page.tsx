@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Callout, Dialog, Flex, Heading, Select, Separator, Text, TextField } from "@radix-ui/themes";
+import {
+  Button,
+  Callout,
+  Dialog,
+  Flex,
+  Heading,
+  Select,
+  Separator,
+  Text,
+  TextField,
+} from "@radix-ui/themes";
 import { EyeOpenIcon, IdCardIcon, Pencil1Icon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
 
 import { AppShell } from "@/components/AppShell";
@@ -94,7 +104,13 @@ export default function UsersPage() {
     const nodes = tree.map(toNode);
     const ungrouped = usersByGroup.get(UNGROUPED) ?? [];
     if (ungrouped.length > 0) {
-      nodes.push({ id: UNGROUPED, title: "Ungrouped", meta: plural(ungrouped.length, "user"), rows: ungrouped, children: [] });
+      nodes.push({
+        id: UNGROUPED,
+        title: "Ungrouped",
+        meta: plural(ungrouped.length, "user"),
+        rows: ungrouped,
+        children: [],
+      });
     }
     return nodes;
   }, [tree, usersByGroup]);

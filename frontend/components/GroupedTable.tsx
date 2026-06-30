@@ -228,10 +228,7 @@ export function GroupedTable<T>({
                 </Table.Cell>
               )}
               {columns.map((c, i) => (
-                <Table.Cell
-                  key={i}
-                  style={i === 0 ? { paddingLeft: e.depth * 20 + 8 } : undefined}
-                >
+                <Table.Cell key={i} style={i === 0 ? { paddingLeft: e.depth * 20 + 8 } : undefined}>
                   {c.cell(e.row)}
                 </Table.Cell>
               ))}

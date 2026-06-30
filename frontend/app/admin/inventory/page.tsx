@@ -339,7 +339,10 @@ function ItemTypeDialog({
             </Field>
           </Grid>
           <Field label="Photo URL">
-            <TextField.Root value={form.photo_url} onChange={(e) => set("photo_url", e.target.value)} />
+            <TextField.Root
+              value={form.photo_url}
+              onChange={(e) => set("photo_url", e.target.value)}
+            />
           </Field>
           <Field label="URL">
             <TextField.Root value={form.url} onChange={(e) => set("url", e.target.value)} />
@@ -536,10 +539,7 @@ function ItemDialog({
             modified={!!defaults && isModified(form.description, defaults.description)}
             onReset={() => reset("description")}
           >
-            <TextArea
-              value={form.description}
-              onChange={(e) => editDescription(e.target.value)}
-            />
+            <TextArea value={form.description} onChange={(e) => editDescription(e.target.value)} />
           </Field>
           {!isEdit && (
             <Field

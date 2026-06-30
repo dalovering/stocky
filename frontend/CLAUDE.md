@@ -25,8 +25,9 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
     (`title` + optional `action`). **Navigation is owned entirely by the shell** so it's identical
     everywhere: the top bar shows the "Stocky" brand (links home) + the primary section nav
     (Kiosk · Inventory · Admin) as a **`TabNav`** (the Radix Themes navigation primitive — real
-    `<nav>` links with an active state, *not* `Tabs`, which is for in-page panels). On `/admin/*`
-    the shell auto-renders a centered **`SegmentedControl`** sub-nav (Users · Inventory · Export) —
+    `<nav>` links with an active state, _not_ `Tabs`, which is for in-page panels). On `/admin/*`
+    the shell auto-renders a centered **`SegmentedControl`** sub-nav (Users · Inventory · History ·
+    Export · Settings) —
     the pill/segmented look deliberately differentiates the second nav level from the top tabs —
     plus the "Log out" button. Active state is derived from `usePathname`. **Don't render a
     page-name heading in a page** — the nav already shows where you are. A page puts its own action

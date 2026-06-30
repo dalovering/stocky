@@ -63,7 +63,10 @@ export default function InventoryPage() {
           onChange={(e) => setQ(e.target.value)}
           style={{ minWidth: 220 }}
         />
-        <Select.Root value={location ?? "all"} onValueChange={(v) => setLocation(v === "all" ? null : v)}>
+        <Select.Root
+          value={location ?? "all"}
+          onValueChange={(v) => setLocation(v === "all" ? null : v)}
+        >
           <Select.Trigger placeholder="Location" />
           <Select.Content>
             <Select.Item value="all">All locations</Select.Item>
