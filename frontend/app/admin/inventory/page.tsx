@@ -9,6 +9,7 @@ import {
   Flex,
   Grid,
   Heading,
+  SegmentedControl,
   Select,
   Separator,
   Text,
@@ -27,6 +28,7 @@ import {
 import { AppShell } from "@/components/AppShell";
 import { ConfirmButton, ConfirmDialog, DialogFooter, DialogHeader } from "@/components/Dialogs";
 import { Field, isModified } from "@/components/Field";
+import { FilterBar } from "@/components/FilterBar";
 import { GroupedTable, type GroupNode } from "@/components/GroupedTable";
 import { HistoryList, ReviewBadge, StatusBadge } from "@/components/HistoryList";
 import { ImportExportButtons } from "@/components/ImportExportButtons";
@@ -34,7 +36,9 @@ import { ImportResultDialog } from "@/components/ImportResultDialog";
 import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { PassiveSelect } from "@/components/PassiveSelect";
 import { SelectionBar } from "@/components/SelectionBar";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSelection } from "@/hooks/useSelection";
+import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { api, ApiError, downloadBlob } from "@/lib/api";
 import {
   ACTIVE_ITEM_STATUSES,
@@ -51,6 +55,15 @@ import {
 
 const ADD_NEW_TYPE = "__add_new_type__";
 const UNCHANGED = "__unchanged__";
+// Filter sentinel for items with no location (matches the backend's queries.NO_LOCATION).
+const NO_LOCATION = "__none__";
+
+type ReviewFilter = "all" | "only" | "exclude";
+
+/** True when a Set holds exactly the given values (order-independent) — for default detection. */
+function setsEqual<T>(set: Set<T>, values: readonly T[]): boolean {
+  return set.size === values.length && values.every((v) => set.has(v));
+}
 
 // Client-side item barcode, matching the backend format (`I` + 10 digits, see
 // backend/app/services/barcode.py). Pre-filled when opening the new-item modal so the admin
@@ -76,10 +89,18 @@ export default function InventoryAdminPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [manufacturers, setManufacturers] = useState<string[]>([]);
+  const [total, setTotal] = useState(0);
+  const [needsReviewCount, setNeedsReviewCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  // Filters (server-side; synced to the URL). Status/Condition use the "Set holds the shown values"
+  // convention; Type/Location use "empty Set = all" since their option universe is dynamic.
   const [q, setQ] = useState("");
-  const [statusSel, setStatusSel] = useState<Set<ItemStatus>>(new Set(ACTIVE_ITEM_STATUSES));
-  const [conditionSel, setConditionSel] = useState<Set<Condition>>(new Set(CONDITIONS));
-  const [reviewOnly, setReviewOnly] = useState(false);
+  const [statusSel, setStatusSel] = useState<Set<ItemStatus>>(() => new Set(ACTIVE_ITEM_STATUSES));
+  const [conditionSel, setConditionSel] = useState<Set<Condition>>(() => new Set(CONDITIONS));
+  const [typeSel, setTypeSel] = useState<Set<string>>(() => new Set());
+  const [locationSel, setLocationSel] = useState<Set<string>>(() => new Set());
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
 
   const { selected, toggleOne, toggleMany, clear: clearSelection } = useSelection();
   const [editType, setEditType] = useState<Partial<ItemType> | null>(null);
@@ -98,18 +119,80 @@ export default function InventoryAdminPage() {
     setManufacturers(m);
   }, []);
 
-  const loadItems = useCallback(async () => {
-    setItems(await api.adminItems());
+  // Global, filter-independent counts (total items + items needing review) for the toolbar/banner.
+  const loadStats = useCallback(async () => {
+    const s = await api.itemStats();
+    setTotal(s.total);
+    setNeedsReviewCount(s.needs_review);
   }, []);
+
+  const debouncedQ = useDebouncedValue(q);
+
+  const loadItems = useCallback(async () => {
+    // An empty Status/Condition selection means "show nothing"; short-circuit, since the server
+    // treats an omitted param as "all" — the opposite of what an empty selection should do.
+    if (statusSel.size === 0 || conditionSel.size === 0) {
+      setItems([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      setItems(
+        await api.adminItems({
+          q: debouncedQ || undefined,
+          status: [...statusSel],
+          condition: [...conditionSel],
+          type_id: typeSel.size ? [...typeSel] : undefined,
+          location: locationSel.size ? [...locationSel] : undefined,
+          needs_review: reviewFilter === "all" ? undefined : reviewFilter === "only",
+        }),
+      );
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not load items.");
+    } finally {
+      setLoading(false);
+    }
+  }, [debouncedQ, statusSel, conditionSel, typeSel, locationSel, reviewFilter]);
+
+  // Seed filters from the URL on mount, then keep the URL in sync. `hydrated` gates the first fetch
+  // so the page queries once with the URL's filters rather than twice (defaults, then URL).
+  const hydrated = useUrlFilters({
+    decode: (sp) => {
+      const qp = sp.get("q");
+      if (qp) setQ(qp);
+      const st = sp.getAll("status");
+      if (st.length) setStatusSel(new Set(st as ItemStatus[]));
+      const co = sp.getAll("condition");
+      if (co.length) setConditionSel(new Set(co as Condition[]));
+      const ty = sp.getAll("type");
+      if (ty.length) setTypeSel(new Set(ty));
+      const lo = sp.getAll("location");
+      if (lo.length) setLocationSel(new Set(lo));
+      const rv = sp.get("review");
+      if (rv === "only" || rv === "exclude") setReviewFilter(rv);
+    },
+    params: {
+      q: q || undefined,
+      status: setsEqual(statusSel, ACTIVE_ITEM_STATUSES) ? undefined : [...statusSel],
+      condition: setsEqual(conditionSel, CONDITIONS) ? undefined : [...conditionSel],
+      type: [...typeSel],
+      location: [...locationSel],
+      review: reviewFilter === "all" ? undefined : reviewFilter,
+    },
+  });
 
   useEffect(() => {
     loadAll();
-  }, [loadAll]);
+    loadStats();
+  }, [loadAll, loadStats]);
   useEffect(() => {
-    loadItems();
-  }, [loadItems]);
+    if (hydrated) loadItems();
+  }, [hydrated, loadItems]);
 
-  const needsReviewCount = useMemo(() => items.filter((i) => i.needs_review).length, [items]);
+  // Re-fetch the items and refresh the global counts after a mutation.
+  const refresh = useCallback(async () => {
+    await Promise.all([loadItems(), loadStats()]);
+  }, [loadItems, loadStats]);
 
   async function download(blobPromise: Promise<Blob>, filename: string) {
     try {
@@ -119,38 +202,49 @@ export default function InventoryAdminPage() {
     }
   }
 
-  // The needs-review banner is a shortcut to "show me everything flagged": entering it clears the
-  // status/condition filters so no flagged item (e.g. a Lost one) is hidden; leaving it restores
-  // the standard default view.
-  function toggleReviewOnly() {
-    const next = !reviewOnly;
-    setReviewOnly(next);
-    setStatusSel(new Set(next ? ITEM_STATUSES : ACTIVE_ITEM_STATUSES));
+  const dirty =
+    q.trim() !== "" ||
+    !setsEqual(statusSel, ACTIVE_ITEM_STATUSES) ||
+    !setsEqual(conditionSel, CONDITIONS) ||
+    typeSel.size > 0 ||
+    locationSel.size > 0 ||
+    reviewFilter !== "all";
+
+  function reset() {
+    setQ("");
+    setStatusSel(new Set(ACTIVE_ITEM_STATUSES));
     setConditionSel(new Set(CONDITIONS));
+    setTypeSel(new Set());
+    setLocationSel(new Set());
+    setReviewFilter("all");
   }
 
-  // Filter the items (search + status/condition/needs-review), then bucket by type. Headers stay
-  // stable while searching. Default hides Lost/Discarded items.
-  const groupNodes = useMemo<GroupNode<Item>[]>(() => {
-    const needle = q.trim().toLowerCase();
-    const visible = items.filter((i) => {
-      if (reviewOnly && !i.needs_review) return false;
-      if (!statusSel.has(i.status)) return false;
-      if (!conditionSel.has(i.condition)) return false;
-      if (needle) {
-        const hay = `${i.name} ${i.item_type_name ?? ""} ${i.location ?? ""} ${i.barcode}`;
-        if (!hay.toLowerCase().includes(needle)) return false;
-      }
-      return true;
-    });
+  // The orange banner is a one-way preset: show every flagged item, widening the other filters so
+  // none is hidden (e.g. a flagged Lost one). The Reset that then appears is the single way back.
+  function showAllFlagged() {
+    setQ("");
+    setStatusSel(new Set(ITEM_STATUSES));
+    setConditionSel(new Set(CONDITIONS));
+    setTypeSel(new Set());
+    setLocationSel(new Set());
+    setReviewFilter("only");
+  }
 
+  const typeName = useMemo(() => new Map(types.map((t) => [t.id, t.name])), [types]);
+  const typeOptions = useMemo(() => types.map((t) => t.id), [types]);
+  // Distinct server locations plus a "(No location)" option for null-location items.
+  const locationOptions = useMemo(() => [NO_LOCATION, ...locations], [locations]);
+
+  // The server already filtered the items; bucket them by type for display. Empty type groups show
+  // in the default view (so you can still manage/add to a type) but are hidden while filtering.
+  const groupNodes = useMemo<GroupNode<Item>[]>(() => {
     const byType = new Map<string, Item[]>();
-    for (const i of visible) {
+    for (const i of items) {
       const list = byType.get(i.item_type_id);
       if (list) list.push(i);
       else byType.set(i.item_type_id, [i]);
     }
-    return types.map((t) => {
+    const nodes: GroupNode<Item>[] = types.map((t) => {
       const rows = byType.get(t.id) ?? [];
       return {
         id: t.id,
@@ -179,7 +273,8 @@ export default function InventoryAdminPage() {
         rows,
       };
     });
-  }, [types, items, q, statusSel, conditionSel, reviewOnly]);
+    return dirty ? nodes.filter((n) => n.rows.length > 0) : nodes;
+  }, [types, items, dirty]);
 
   async function confirmDelete() {
     if (!del) return;
@@ -188,7 +283,7 @@ export default function InventoryAdminPage() {
     try {
       if (target.kind === "item") await api.deleteItem(target.id);
       else await api.deleteItemType(target.id);
-      loadItems();
+      refresh();
       loadAll();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Delete failed.");
@@ -200,7 +295,7 @@ export default function InventoryAdminPage() {
     try {
       await api.batchDeleteItems([...selected]);
       clearSelection();
-      loadItems();
+      refresh();
       loadAll();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Delete failed.");
@@ -210,13 +305,18 @@ export default function InventoryAdminPage() {
   return (
     <AppShell>
       <Flex mb="3" gap="3" justify="between" align="center" wrap="wrap">
-        <Flex gap="2" align="center" wrap="wrap">
-          <TextField.Root
-            placeholder="Search name, type, location, barcode…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            style={{ minWidth: 240 }}
-          />
+        <FilterBar
+          search={{
+            value: q,
+            onChange: setQ,
+            placeholder: "Search name, type, location, barcode…",
+          }}
+          dirty={dirty}
+          onReset={reset}
+          shown={items.length}
+          total={total}
+          noun="item"
+        >
           <MultiSelectFilter
             label="Status"
             options={ITEM_STATUSES}
@@ -229,7 +329,37 @@ export default function InventoryAdminPage() {
             selected={conditionSel}
             onChange={setConditionSel}
           />
-        </Flex>
+          <MultiSelectFilter
+            label="Type"
+            options={typeOptions}
+            selected={typeSel}
+            onChange={setTypeSel}
+            emptyMeansAll
+            renderOption={(id) => typeName.get(id) ?? id}
+          />
+          <MultiSelectFilter
+            label="Location"
+            options={locationOptions}
+            selected={locationSel}
+            onChange={setLocationSel}
+            emptyMeansAll
+            renderOption={(loc) => (loc === NO_LOCATION ? "(No location)" : loc)}
+          />
+          <Flex align="center" gap="1">
+            <Text size="1" color="gray">
+              Review
+            </Text>
+            <SegmentedControl.Root
+              size="1"
+              value={reviewFilter}
+              onValueChange={(v) => setReviewFilter(v as ReviewFilter)}
+            >
+              <SegmentedControl.Item value="all">All</SegmentedControl.Item>
+              <SegmentedControl.Item value="only">Flagged</SegmentedControl.Item>
+              <SegmentedControl.Item value="exclude">Unflagged</SegmentedControl.Item>
+            </SegmentedControl.Root>
+          </Flex>
+        </FilterBar>
         <Flex gap="2" wrap="wrap">
           <ImportExportButtons
             exportName="stocky-items.xlsx"
@@ -237,7 +367,7 @@ export default function InventoryAdminPage() {
             onImport={api.importItems}
             onImported={(r) => {
               setImportResult(r);
-              loadItems();
+              refresh();
               loadAll();
             }}
             onError={setError}
@@ -258,18 +388,13 @@ export default function InventoryAdminPage() {
       )}
 
       {needsReviewCount > 0 && (
-        <Callout.Root
-          color="orange"
-          mb="3"
-          onClick={toggleReviewOnly}
-          style={{ cursor: "pointer" }}
-        >
+        <Callout.Root color="orange" mb="3" onClick={showAllFlagged} style={{ cursor: "pointer" }}>
           <Callout.Icon>
             <ExclamationTriangleIcon />
           </Callout.Icon>
           <Callout.Text>
-            {needsReviewCount} {needsReviewCount === 1 ? "item needs" : "items need"} review.{" "}
-            {reviewOnly ? "Click to show all" : "Click to filter to review items"}
+            {needsReviewCount} {needsReviewCount === 1 ? "item needs" : "items need"} review. Click
+            to view {needsReviewCount === 1 ? "it" : "them"}.
           </Callout.Text>
         </Callout.Root>
       )}
@@ -286,7 +411,13 @@ export default function InventoryAdminPage() {
       <GroupedTable
         groups={groupNodes}
         rowKey={(i) => i.id}
-        empty="No item types yet."
+        empty={
+          loading
+            ? "Loading…"
+            : types.length === 0
+              ? "No item types yet."
+              : "No items match your filters."
+        }
         selectable
         selectedIds={selected}
         onToggle={toggleOne}
@@ -343,7 +474,7 @@ export default function InventoryAdminPage() {
           onAddType={() => setEditType({})}
           onSaved={() => {
             setEditItem(null);
-            loadItems();
+            refresh();
             loadAll();
           }}
         />
@@ -359,11 +490,11 @@ export default function InventoryAdminPage() {
           }}
           onChanged={(i) => {
             setDetailItem(i);
-            loadItems();
+            refresh();
           }}
           onDeleted={() => {
             setDetailItem(null);
-            loadItems();
+            refresh();
             loadAll();
           }}
           onPrint={() => download(api.itemTagPdf(detailItem.id), `tag-${detailItem.barcode}.pdf`)}
@@ -379,7 +510,7 @@ export default function InventoryAdminPage() {
           onSaved={() => {
             setBatchOpen(false);
             clearSelection();
-            loadItems();
+            refresh();
             loadAll();
           }}
           apply={async (patch, status) => {
