@@ -44,6 +44,16 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
   - `components/Dialogs.tsx` — `DialogHeader` (title + ✕), `DialogFooter` (Cancel/Save),
     `ConfirmButton` (inline confirm) and `ConfirmDialog` (controlled confirm for table row deletes).
     Never use native `window.confirm`.
+  - `components/HistoryList.tsx` — the event-history table plus `StatusBadge` (item *and* user
+    status), `EventBadge`, and `ReviewBadge`. Use these badges; don't hand-roll a `<Badge>`.
+  - **Admin multi-select / batch / IO** (shared by the Users and Inventory tabs, so they behave
+    identically): the `useSelection` hook (`hooks/useSelection.ts`), `components/SelectionBar.tsx`
+    (the "N selected · Edit · Print · Delete · Clear" bar), `components/ImportExportButtons.tsx`
+    (Download `.xlsx` + Import), and `components/ImportResultDialog.tsx`. Pass `selectable` +
+    `selectedIds`/`onToggle`/`onToggleMany` to `GroupedTable` to enable checkboxes.
+- **Admin tabs.** `/admin/{users,inventory}` are the CRUD + batch tables; `/admin/history` is the
+  paginated event log; `/admin/settings` toggles app config; `/admin/export` downloads the multi-up
+  card sheet. Add a tab via `ADMIN_NAV` in `AppShell.tsx`.
 - **API access.** All backend calls go through the typed client in `lib/api.ts`; it sends cookies
   (`credentials: "include"`) for the admin session. Don't call `fetch` directly from components.
   Keep `lib/types.ts` in sync with the backend `app/schemas`.
