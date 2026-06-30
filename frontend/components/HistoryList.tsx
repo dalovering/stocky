@@ -15,6 +15,8 @@ const LABEL: Record<EventType, string> = {
   loss_report: "Reported lost",
   discard: "Discarded",
   repair: "Repaired",
+  mark_unavailable: "Marked unavailable",
+  restore: "Restored",
 };
 
 const COLOR: Record<EventType, "gray" | "green" | "blue" | "orange" | "red"> = {
@@ -25,6 +27,8 @@ const COLOR: Record<EventType, "gray" | "green" | "blue" | "orange" | "red"> = {
   loss_report: "red",
   discard: "red",
   repair: "green",
+  mark_unavailable: "orange",
+  restore: "green",
 };
 
 /**
@@ -67,14 +71,14 @@ export function HistoryList({
   return <DataTable rows={events} rowKey={(e) => e.id} empty="No history yet." columns={columns} />;
 }
 
+const STATUS_COLOR: Record<string, "green" | "blue" | "orange" | "red" | "gray"> = {
+  Available: "green",
+  "Checked out": "blue",
+  Unavailable: "orange",
+  Lost: "red",
+  Discarded: "gray",
+};
+
 export function StatusBadge({ status }: { status: string }) {
-  const color =
-    status === "Available"
-      ? "green"
-      : status === "On loan"
-        ? "blue"
-        : status === "Damaged"
-          ? "orange"
-          : "red";
-  return <Badge color={color}>{status}</Badge>;
+  return <Badge color={STATUS_COLOR[status] ?? "gray"}>{status}</Badge>;
 }

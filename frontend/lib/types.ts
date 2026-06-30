@@ -1,8 +1,10 @@
 // Mirrors the backend schemas (app/schemas). Keep in sync when the API changes.
 
-export type Condition = "New" | "Used" | "Lost" | "Damaged" | "Discarded";
+export type Condition = "On order" | "New" | "Good" | "Fair" | "Worn" | "Damaged";
 
-export type ItemStatus = "Available" | "On loan" | "Damaged" | "Lost" | "Discarded";
+export type ItemStatus = "Checked out" | "Available" | "Unavailable" | "Lost" | "Discarded";
+
+export type UserStatus = "Active" | "Inactive";
 
 export type EventType =
   | "create"
@@ -11,7 +13,38 @@ export type EventType =
   | "damage_report"
   | "loss_report"
   | "discard"
-  | "repair";
+  | "repair"
+  | "mark_unavailable"
+  | "restore";
+
+export const CONDITIONS: Condition[] = ["On order", "New", "Good", "Fair", "Worn", "Damaged"];
+
+// Statuses an admin can set directly (Checked out is loan-driven, not settable).
+export const SETTABLE_STATUSES: ItemStatus[] = [
+  "Available",
+  "Unavailable",
+  "Lost",
+  "Discarded",
+];
+
+export interface Page<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AppSettings {
+  kiosk_block_inactive_users: boolean;
+}
+
+export interface ImportResult {
+  created: number;
+  updated: number;
+  deleted: number;
+  skipped: number;
+  errors: { row: number; message: string }[];
+}
 
 export interface Group {
   id: string;
@@ -30,6 +63,7 @@ export interface UserRead {
   name: string;
   group_id: string | null;
   group_name: string | null;
+  status: UserStatus;
   barcode: string;
   loan_count: number;
 }
@@ -62,6 +96,7 @@ export interface Item {
   purchase_date: string | null;
   location: string | null;
   condition: Condition;
+  needs_review: boolean;
   barcode: string;
   item_type_name: string | null;
   status: ItemStatus;

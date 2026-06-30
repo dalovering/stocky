@@ -43,11 +43,11 @@ export default function InventoryPage() {
       .sort((a, b) => a[1].name.localeCompare(b[1].name))
       .map(([id, { name, rows }]) => {
         const available = rows.filter((r) => r.status === "Available").length;
-        const onLoan = rows.filter((r) => r.status === "On loan").length;
+        const onLoan = rows.filter((r) => r.status === "Checked out").length;
         return {
           id,
           title: name,
-          meta: `${rows.length} total · ${available} available · ${onLoan} on loan`,
+          meta: `${rows.length} total · ${available} available · ${onLoan} out`,
           children: [],
           rows,
         };
