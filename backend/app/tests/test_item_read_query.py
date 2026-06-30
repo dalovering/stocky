@@ -245,11 +245,18 @@ async def test_items_endpoint_multivalue_params_and_derived_status_filter(admin_
 
 
 @pytest.mark.asyncio
-async def test_needs_review_count_endpoint(admin_client):
+async def test_item_stats_endpoint(admin_client):
     t = (await admin_client.post("/api/admin/item-types", json={"name": "Calc"})).json()
     it = (
         await admin_client.post("/api/admin/items", json={"item_type_id": t["id"], "name": "A"})
     ).json()
-    assert (await admin_client.get("/api/admin/items/needs-review-count")).json() == {"count": 0}
+    await admin_client.post("/api/admin/items", json={"item_type_id": t["id"], "name": "B"})
+    assert (await admin_client.get("/api/admin/items/stats")).json() == {
+        "total": 2,
+        "needs_review": 0,
+    }
     await admin_client.patch(f"/api/admin/items/{it['id']}", json={"needs_review": True})
-    assert (await admin_client.get("/api/admin/items/needs-review-count")).json() == {"count": 1}
+    assert (await admin_client.get("/api/admin/items/stats")).json() == {
+        "total": 2,
+        "needs_review": 1,
+    }

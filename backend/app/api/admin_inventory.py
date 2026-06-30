@@ -157,13 +157,14 @@ async def list_items(
     return await serialize_read_rows(session, rows)
 
 
-@router.get("/items/needs-review-count")
-async def needs_review_count(session: AsyncSession = Depends(get_session)) -> dict[str, int]:
-    """Global count of items flagged for review (drives the admin banner, filter-independent)."""
-    count = await session.scalar(
+@router.get("/items/stats")
+async def item_stats(session: AsyncSession = Depends(get_session)) -> dict[str, int]:
+    """Global, filter-independent counts for the toolbar: total items + items needing review."""
+    total = await session.scalar(select(func.count()).select_from(Item))
+    needs_review = await session.scalar(
         select(func.count()).select_from(Item).where(Item.needs_review.is_(True))
     )
-    return {"count": int(count or 0)}
+    return {"total": int(total or 0), "needs_review": int(needs_review or 0)}
 
 
 @router.post("/items", response_model=ItemRead, status_code=status.HTTP_201_CREATED)
