@@ -129,8 +129,12 @@ export const api = {
   users: (params?: { group_id?: string; q?: string }) =>
     get<UserRead[]>(`/api/admin/users${query(params)}`),
   user: (id: string) => get<UserDetail>(`/api/admin/users/${id}`),
-  createUser: (b: { name: string; group_id?: string | null; barcode?: string | null }) =>
-    post<UserDetail>("/api/admin/users", b),
+  createUser: (b: {
+    name: string;
+    group_id?: string | null;
+    status?: UserStatus;
+    barcode?: string | null;
+  }) => post<UserDetail>("/api/admin/users", b),
   updateUser: (id: string, b: Record<string, unknown>) =>
     patch<UserDetail>(`/api/admin/users/${id}`, b),
   deleteUser: (id: string) => del(`/api/admin/users/${id}`),
