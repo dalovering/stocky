@@ -126,7 +126,7 @@ export const api = {
   deleteGroup: (id: string) => del(`/api/admin/groups/${id}`),
 
   // ---- Admin: users ----
-  users: (params?: { group_id?: string; q?: string }) =>
+  users: (params?: { group_id?: string; q?: string; status?: readonly UserStatus[] }) =>
     get<UserRead[]>(`/api/admin/users${query(params)}`),
   user: (id: string) => get<UserDetail>(`/api/admin/users/${id}`),
   createUser: (b: {
@@ -158,8 +158,15 @@ export const api = {
   updateItemType: (id: string, b: Record<string, unknown>) =>
     patch<ItemType>(`/api/admin/item-types/${id}`, b),
   deleteItemType: (id: string) => del(`/api/admin/item-types/${id}`),
-  adminItems: (params?: { q?: string; type_id?: string; location?: string }) =>
-    get<Item[]>(`/api/admin/items${query(params)}`),
+  adminItems: (params?: {
+    q?: string;
+    type_id?: readonly string[];
+    location?: readonly string[];
+    condition?: readonly Condition[];
+    status?: readonly ItemStatus[];
+    needs_review?: boolean;
+  }) => get<Item[]>(`/api/admin/items${query(params)}`),
+  itemStats: () => get<{ total: number; needs_review: number }>("/api/admin/items/stats"),
   createItem: (b: Record<string, unknown>) => post<Item>("/api/admin/items", b),
   updateItem: (id: string, b: Record<string, unknown>) => patch<Item>(`/api/admin/items/${id}`, b),
   deleteItem: (id: string) => del(`/api/admin/items/${id}`),
@@ -225,19 +232,34 @@ export const api = {
     post<Item>("/api/kiosk/report-loss", { item_id, user_id: user_id ?? null, note }),
 
   // ---- Inventory (read-only) ----
-  inventoryItems: (params?: { q?: string; type_id?: string; location?: string }) =>
-    get<Item[]>(`/api/inventory/items${query(params)}`),
+  inventoryItems: (params?: {
+    q?: string;
+    type_id?: readonly string[];
+    location?: readonly string[];
+    condition?: readonly Condition[];
+    status?: readonly ItemStatus[];
+  }) => get<Item[]>(`/api/inventory/items${query(params)}`),
   inventoryItem: (id: string) => get<Item>(`/api/inventory/items/${id}`),
   inventoryItemEvents: (id: string) => get<ItemEvent[]>(`/api/inventory/items/${id}/events`),
   inventorySummary: () => get<InventorySummaryRow[]>("/api/inventory/summary"),
   inventoryLocations: () => get<string[]>("/api/inventory/locations"),
 };
 
-function query(params?: Record<string, string | number | undefined | null>): string {
+type QueryValue = string | number | boolean | undefined | null | readonly (string | number)[];
+
+// Build a query string. Array values become repeated keys (`?status=A&status=B`) to match the
+// FastAPI multi-valued filter params; null/undefined/"" are dropped, `false` is kept.
+function query(params?: Record<string, QueryValue>): string {
   if (!params) return "";
-  const pairs = Object.entries(params).filter(([, v]) => v != null && v !== "");
-  if (pairs.length === 0) return "";
-  return "?" + pairs.map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join("&");
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(params)) {
+    if (v == null || v === "") continue;
+    const values = Array.isArray(v) ? v : [v];
+    for (const item of values) {
+      if (item != null && item !== "") parts.push(`${k}=${encodeURIComponent(String(item))}`);
+    }
+  }
+  return parts.length ? "?" + parts.join("&") : "";
 }
 
 function form(file: File): FormData {
