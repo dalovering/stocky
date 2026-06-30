@@ -62,12 +62,16 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
 
 ## Printing
 
-- ID cards and item tags print via `components/BarcodeLabelDialog.tsx`. The `.print-area` /
-  `.no-print` classes in `globals.css` control what appears on paper. Barcodes are SVGs served by
-  the backend (`/api/admin/users/{id}/barcode.svg`, `/api/admin/items/{id}/barcode.svg`).
-- The admin **Export data** page (`app/admin/export/page.tsx`) downloads one PDF with every user and
-  item barcode in two sections. It fetches `/api/admin/labels.pdf` via `api.labelsPdf()` (a Blob —
-  use `requestBlob`, not `request`, for binary responses) and triggers a client-side download.
+- ID cards and item tags are **server-rendered PDFs** from SVG templates (backend
+  `app/templates/*.svg` + `services/cards.py`). The Users/Inventory tabs download a single card
+  (`api.userIdCardPdf` / `api.itemTagPdf`), a whole group/type one-per-page
+  (`api.groupIdCardsPdf` / `api.itemTypeTagsPdf`), or the current selection
+  (`api.usersIdCardsPdf` / `api.itemsTagsPdf`). Use `downloadBlob(blob, filename)` from `lib/api`
+  to trigger the download; binary responses go through `requestBlob` (GET) / `requestBlobPost`
+  (POST), not `request`.
+- The admin **Export** page (`app/admin/export/page.tsx`) downloads the multi-up US-Letter sheet
+  (every ID card, then every item tag) via `api.labelsPdf()`.
+- `.no-print` in `globals.css` hides chrome from any browser print; the card PDFs don't rely on it.
 
 ## Testing & lint
 
