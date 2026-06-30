@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Badge,
   Button,
   Callout,
+  Checkbox,
   Dialog,
   Flex,
   Grid,
@@ -14,19 +16,37 @@ import {
   TextArea,
   TextField,
 } from "@radix-ui/themes";
-import { EyeOpenIcon, IdCardIcon, Pencil1Icon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
+import {
+  DownloadIcon,
+  ExclamationTriangleIcon,
+  EyeOpenIcon,
+  IdCardIcon,
+  Pencil1Icon,
+  PlusIcon,
+  TrashIcon,
+  UploadIcon,
+} from "@radix-ui/react-icons";
 
 import { AppShell } from "@/components/AppShell";
-import { BarcodeLabelDialog } from "@/components/BarcodeLabelDialog";
 import { ConfirmButton, ConfirmDialog, DialogFooter, DialogHeader } from "@/components/Dialogs";
 import { Field, isModified } from "@/components/Field";
 import { GroupedTable, type GroupNode } from "@/components/GroupedTable";
 import { HistoryList, StatusBadge } from "@/components/HistoryList";
 import { PassiveSelect } from "@/components/PassiveSelect";
-import { api, ApiError } from "@/lib/api";
-import type { Item, ItemEvent, ItemType } from "@/lib/types";
+import { api, ApiError, downloadBlob } from "@/lib/api";
+import {
+  CONDITIONS,
+  SETTABLE_STATUSES,
+  type Condition,
+  type ImportResult,
+  type Item,
+  type ItemEvent,
+  type ItemStatus,
+  type ItemType,
+} from "@/lib/types";
 
 const ADD_NEW_TYPE = "__add_new_type__";
+const UNCHANGED = "__unchanged__";
 
 // Client-side item barcode, matching the backend format (`I` + 10 digits, see
 // backend/app/services/barcode.py). Pre-filled when opening the new-item modal so the admin
@@ -40,19 +60,36 @@ function generateItemBarcode(): string {
 
 type DeleteTarget = { kind: "item" | "type"; id: string; name: string };
 
+// "active" hides the dead states (Lost/Discarded); "all" shows everything.
+type StatusFilter = "active" | "all" | ItemStatus;
+
+type ItemPatch = {
+  item_type_id?: string;
+  location?: string | null;
+  condition?: Condition;
+  needs_review?: boolean;
+};
+
 export default function InventoryAdminPage() {
   const [types, setTypes] = useState<ItemType[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [manufacturers, setManufacturers] = useState<string[]>([]);
   const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
+  const [conditionFilter, setConditionFilter] = useState<Condition | "all">("all");
+  const [reviewOnly, setReviewOnly] = useState(false);
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editType, setEditType] = useState<Partial<ItemType> | null>(null);
   const [editItem, setEditItem] = useState<Partial<Item> | null>(null);
   const [detailItem, setDetailItem] = useState<Item | null>(null);
-  const [printItem, setPrintItem] = useState<Item | null>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
   const [del, setDel] = useState<DeleteTarget | null>(null);
+  const [batchDelete, setBatchDelete] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const importInput = useRef<HTMLInputElement>(null);
 
   const loadAll = useCallback(async () => {
     const [t, l, m] = await Promise.all([api.itemTypes(), api.locations(), api.manufacturers()]);
@@ -72,13 +109,52 @@ export default function InventoryAdminPage() {
     loadItems();
   }, [loadItems]);
 
-  // One group per item type, with its items beneath (name-filtered client-side so the type
-  // headers stay stable while searching).
+  const needsReviewCount = useMemo(() => items.filter((i) => i.needs_review).length, [items]);
+
+  async function download(blobPromise: Promise<Blob>, filename: string) {
+    try {
+      downloadBlob(await blobPromise, filename);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Download failed.");
+    }
+  }
+
+  const toggleOne = (id: string, checked: boolean) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  const toggleMany = (ids: string[], checked: boolean) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) checked ? next.add(id) : next.delete(id);
+      return next;
+    });
+  const clearSelection = () => setSelected(new Set());
+
+  // Filter the items (search + status/condition/needs-review), then bucket by type. Headers stay
+  // stable while searching. Default hides Lost/Discarded items.
   const groupNodes = useMemo<GroupNode<Item>[]>(() => {
     const needle = q.trim().toLowerCase();
+    const visible = items.filter((i) => {
+      if (reviewOnly && !i.needs_review) return false;
+      if (statusFilter === "active") {
+        if (i.status === "Lost" || i.status === "Discarded") return false;
+      } else if (statusFilter !== "all" && i.status !== statusFilter) {
+        return false;
+      }
+      if (conditionFilter !== "all" && i.condition !== conditionFilter) return false;
+      if (needle) {
+        const hay = `${i.name} ${i.item_type_name ?? ""} ${i.location ?? ""} ${i.barcode}`;
+        if (!hay.toLowerCase().includes(needle)) return false;
+      }
+      return true;
+    });
+
     const byType = new Map<string, Item[]>();
-    for (const i of items) {
-      if (needle && !i.name.toLowerCase().includes(needle)) continue;
+    for (const i of visible) {
       const list = byType.get(i.item_type_id);
       if (list) list.push(i);
       else byType.set(i.item_type_id, [i]);
@@ -95,6 +171,11 @@ export default function InventoryAdminPage() {
             label: "Add item of this type",
             onClick: () => setEditItem({ item_type_id: t.id }),
           },
+          {
+            icon: <IdCardIcon />,
+            label: "Print all tags",
+            onClick: () => download(api.itemTypeTagsPdf(t.id), `tags-${t.name}.pdf`),
+          },
           { icon: <Pencil1Icon />, label: "Edit type", onClick: () => setEditType(t) },
           {
             icon: <TrashIcon />,
@@ -107,7 +188,21 @@ export default function InventoryAdminPage() {
         rows,
       };
     });
-  }, [types, items, q]);
+  }, [types, items, q, statusFilter, conditionFilter, reviewOnly]);
+
+  function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    api
+      .importItems(file)
+      .then((result) => {
+        setImportResult(result);
+        loadItems();
+        loadAll();
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Import failed."));
+  }
 
   async function confirmDelete() {
     if (!del) return;
@@ -123,21 +218,77 @@ export default function InventoryAdminPage() {
     }
   }
 
+  async function confirmBatchDelete() {
+    setBatchDelete(false);
+    try {
+      await api.batchDeleteItems([...selected]);
+      clearSelection();
+      loadItems();
+      loadAll();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Delete failed.");
+    }
+  }
+
   return (
     <AppShell>
       <Flex mb="3" gap="3" justify="between" align="center" wrap="wrap">
-        <TextField.Root
-          placeholder="Search items…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          style={{ minWidth: 220 }}
-        />
-        <Flex gap="3">
+        <Flex gap="2" align="center" wrap="wrap">
+          <TextField.Root
+            placeholder="Search name, type, location, barcode…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            style={{ minWidth: 240 }}
+          />
+          <Select.Root
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+          >
+            <Select.Trigger />
+            <Select.Content>
+              <Select.Item value="active">Active</Select.Item>
+              <Select.Item value="all">All statuses</Select.Item>
+              {(
+                ["Available", "Checked out", "Unavailable", "Lost", "Discarded"] as ItemStatus[]
+              ).map((s) => (
+                <Select.Item key={s} value={s}>
+                  {s}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+          <Select.Root
+            value={conditionFilter}
+            onValueChange={(v) => setConditionFilter(v as Condition | "all")}
+          >
+            <Select.Trigger />
+            <Select.Content>
+              <Select.Item value="all">Any condition</Select.Item>
+              {CONDITIONS.map((c) => (
+                <Select.Item key={c} value={c}>
+                  {c}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+        </Flex>
+        <Flex gap="2" wrap="wrap">
+          <Button
+            variant="soft"
+            color="gray"
+            onClick={() => download(api.itemsXlsx(), "stocky-items.xlsx")}
+          >
+            <DownloadIcon /> .xlsx
+          </Button>
+          <Button variant="soft" color="gray" onClick={() => importInput.current?.click()}>
+            <UploadIcon /> Import
+          </Button>
+          <input ref={importInput} type="file" accept=".xlsx" hidden onChange={onImportFile} />
           <Button variant="soft" onClick={() => setEditType({})}>
-            <PlusIcon /> Add item type
+            <PlusIcon /> Type
           </Button>
           <Button onClick={() => setEditItem({})}>
-            <PlusIcon /> Add item
+            <PlusIcon /> Item
           </Button>
         </Flex>
       </Flex>
@@ -148,20 +299,88 @@ export default function InventoryAdminPage() {
         </Callout.Root>
       )}
 
+      {needsReviewCount > 0 && (
+        <Callout.Root
+          color="orange"
+          mb="3"
+          onClick={() => setReviewOnly((v) => !v)}
+          style={{ cursor: "pointer" }}
+        >
+          <Callout.Icon>
+            <ExclamationTriangleIcon />
+          </Callout.Icon>
+          <Callout.Text>
+            {needsReviewCount} {needsReviewCount === 1 ? "item needs" : "items need"} review.{" "}
+            {reviewOnly ? "Showing them — click to show all." : "Click to show only these."}
+          </Callout.Text>
+        </Callout.Root>
+      )}
+
+      {selected.size > 0 && (
+        <Flex
+          mb="3"
+          p="2"
+          px="3"
+          gap="3"
+          align="center"
+          style={{ background: "var(--accent-3)", borderRadius: 6 }}
+        >
+          <Text size="2" weight="medium">
+            {selected.size} selected
+          </Text>
+          <Button size="1" variant="soft" onClick={() => setBatchOpen(true)}>
+            <Pencil1Icon /> Edit
+          </Button>
+          <Button
+            size="1"
+            variant="soft"
+            onClick={() => download(api.itemsTagsPdf([...selected]), "item-tags.pdf")}
+          >
+            <IdCardIcon /> Print tags
+          </Button>
+          <Button size="1" variant="soft" color="red" onClick={() => setBatchDelete(true)}>
+            <TrashIcon /> Delete
+          </Button>
+          <Button size="1" variant="ghost" color="gray" onClick={clearSelection}>
+            Clear
+          </Button>
+        </Flex>
+      )}
+
       <GroupedTable
         groups={groupNodes}
         rowKey={(i) => i.id}
         empty="No item types yet."
+        selectable
+        selectedIds={selected}
+        onToggle={toggleOne}
+        onToggleMany={toggleMany}
         columns={[
           { header: "Name", cell: (i) => i.name },
           { header: "Location", cell: (i) => i.location ?? "—" },
           { header: "Condition", cell: (i) => i.condition },
-          { header: "Status", cell: (i) => <StatusBadge status={i.status} /> },
+          {
+            header: "Status",
+            cell: (i) => (
+              <Flex gap="1" align="center">
+                <StatusBadge status={i.status} />
+                {i.needs_review && (
+                  <Badge color="orange" variant="soft">
+                    review
+                  </Badge>
+                )}
+              </Flex>
+            ),
+          },
         ]}
         rowActions={(i) => [
           { icon: <EyeOpenIcon />, label: "View", onClick: () => setDetailItem(i) },
           { icon: <Pencil1Icon />, label: "Edit", onClick: () => setEditItem(i) },
-          { icon: <IdCardIcon />, label: "Print tag", onClick: () => setPrintItem(i) },
+          {
+            icon: <IdCardIcon />,
+            label: "Print tag",
+            onClick: () => download(api.itemTagPdf(i.id), `tag-${i.barcode}.pdf`),
+          },
           {
             icon: <TrashIcon />,
             label: "Delete",
@@ -206,23 +425,44 @@ export default function InventoryAdminPage() {
             setDetailItem(null);
             setEditItem(i);
           }}
+          onChanged={(i) => {
+            setDetailItem(i);
+            loadItems();
+          }}
           onDeleted={() => {
             setDetailItem(null);
             loadItems();
             loadAll();
           }}
+          onPrint={() => download(api.itemTagPdf(detailItem.id), `tag-${detailItem.barcode}.pdf`)}
         />
       )}
 
-      {printItem && (
-        <BarcodeLabelDialog
-          open
-          onOpenChange={(o) => !o && setPrintItem(null)}
-          kind="Item tag"
-          title={printItem.name}
-          subtitle={printItem.item_type_name}
-          barcodeValue={printItem.barcode}
-          svgUrl={api.itemBarcodeSvg(printItem.id)}
+      {batchOpen && (
+        <ItemBatchDialog
+          count={selected.size}
+          types={types}
+          locations={locations}
+          onClose={() => setBatchOpen(false)}
+          onSaved={() => {
+            setBatchOpen(false);
+            clearSelection();
+            loadItems();
+            loadAll();
+          }}
+          apply={async (patch, status) => {
+            const ids = [...selected];
+            if (Object.keys(patch).length > 0) await api.batchUpdateItems(ids, patch);
+            if (status) await api.batchItemStatus(ids, status);
+          }}
+        />
+      )}
+
+      {importResult && (
+        <ImportResultDialog
+          result={importResult}
+          subject="items"
+          onClose={() => setImportResult(null)}
         />
       )}
 
@@ -237,7 +477,169 @@ export default function InventoryAdminPage() {
         }
         onConfirm={confirmDelete}
       />
+
+      <ConfirmDialog
+        open={batchDelete}
+        onOpenChange={(o) => !o && setBatchDelete(false)}
+        title={`Delete ${selected.size} ${selected.size === 1 ? "item" : "items"}?`}
+        description="This removes the selected items and their history. This cannot be undone."
+        onConfirm={confirmBatchDelete}
+      />
     </AppShell>
+  );
+}
+
+function ItemBatchDialog({
+  count,
+  types,
+  locations,
+  onClose,
+  onSaved,
+  apply,
+}: {
+  count: number;
+  types: ItemType[];
+  locations: string[];
+  onClose: () => void;
+  onSaved: () => void;
+  apply: (patch: ItemPatch, status: ItemStatus | undefined) => Promise<void>;
+}) {
+  const [typeId, setTypeId] = useState(UNCHANGED);
+  const [condition, setCondition] = useState<string>(UNCHANGED);
+  const [status, setStatus] = useState<string>(UNCHANGED);
+  const [changeLocation, setChangeLocation] = useState(false);
+  const [location, setLocation] = useState<string | null>(null);
+  const [clearReview, setClearReview] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      const patch: ItemPatch = {};
+      if (typeId !== UNCHANGED) patch.item_type_id = typeId;
+      if (condition !== UNCHANGED) patch.condition = condition as Condition;
+      if (changeLocation) patch.location = location;
+      if (clearReview) patch.needs_review = false;
+      await apply(patch, status === UNCHANGED ? undefined : (status as ItemStatus));
+      onSaved();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog.Root open onOpenChange={(o) => !o && onClose()}>
+      <Dialog.Content maxWidth="460px">
+        <Dialog.Title>
+          Edit {count} {count === 1 ? "item" : "items"}
+        </Dialog.Title>
+        <Text size="2" color="gray">
+          Only the fields you change are applied to every selected item.
+        </Text>
+        <Flex direction="column" gap="3" mt="3">
+          <Field label="Move to item type">
+            <Select.Root value={typeId} onValueChange={setTypeId}>
+              <Select.Trigger style={{ width: "100%" }} />
+              <Select.Content>
+                <Select.Item value={UNCHANGED}>Leave unchanged</Select.Item>
+                {types.map((t) => (
+                  <Select.Item key={t.id} value={t.id}>
+                    {t.name}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Root>
+          </Field>
+          <Field label="Set condition">
+            <Select.Root value={condition} onValueChange={setCondition}>
+              <Select.Trigger style={{ width: "100%" }} />
+              <Select.Content>
+                <Select.Item value={UNCHANGED}>Leave unchanged</Select.Item>
+                {CONDITIONS.map((c) => (
+                  <Select.Item key={c} value={c}>
+                    {c}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Root>
+          </Field>
+          <Field label="Set status">
+            <Select.Root value={status} onValueChange={setStatus}>
+              <Select.Trigger style={{ width: "100%" }} />
+              <Select.Content>
+                <Select.Item value={UNCHANGED}>Leave unchanged</Select.Item>
+                {SETTABLE_STATUSES.map((s) => (
+                  <Select.Item key={s} value={s}>
+                    {s}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Root>
+          </Field>
+          <label>
+            <Flex gap="2" align="center" mb={changeLocation ? "2" : "0"}>
+              <Checkbox
+                checked={changeLocation}
+                onCheckedChange={(c) => setChangeLocation(c === true)}
+              />
+              <Text size="2">Change location</Text>
+            </Flex>
+          </label>
+          {changeLocation && (
+            <PassiveSelect value={location} options={locations} onChange={setLocation} />
+          )}
+          <label>
+            <Flex gap="2" align="center">
+              <Checkbox checked={clearReview} onCheckedChange={(c) => setClearReview(c === true)} />
+              <Text size="2">Clear “needs review” flag</Text>
+            </Flex>
+          </label>
+        </Flex>
+        <DialogFooter onCancel={onClose} onSave={save} saveDisabled={busy} saveLabel="Apply" />
+      </Dialog.Content>
+    </Dialog.Root>
+  );
+}
+
+function ImportResultDialog({
+  result,
+  subject,
+  onClose,
+}: {
+  result: ImportResult;
+  subject: string;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog.Root open onOpenChange={(o) => !o && onClose()}>
+      <Dialog.Content maxWidth="480px">
+        <DialogHeader title={`Imported ${subject}`} />
+        <Flex gap="2" mt="2" wrap="wrap">
+          <Badge color="green">{result.created} created</Badge>
+          <Badge color="blue">{result.updated} updated</Badge>
+          <Badge color="red">{result.deleted} deleted</Badge>
+          <Badge color="gray">{result.skipped} skipped</Badge>
+        </Flex>
+        {result.errors.length > 0 && (
+          <>
+            <Separator my="3" size="4" />
+            <Heading size="2" mb="2" color="red">
+              {result.errors.length} {result.errors.length === 1 ? "error" : "errors"}
+            </Heading>
+            <Flex direction="column" gap="1" style={{ maxHeight: 240, overflowY: "auto" }}>
+              {result.errors.map((e, i) => (
+                <Text key={i} size="1" color="gray">
+                  Row {e.row}: {e.message}
+                </Text>
+              ))}
+            </Flex>
+          </>
+        )}
+        <Flex justify="end" mt="4">
+          <Button onClick={onClose}>Done</Button>
+        </Flex>
+      </Dialog.Content>
+    </Dialog.Root>
   );
 }
 
@@ -381,21 +783,13 @@ function ItemDialog({
     purchase_date: item.purchase_date ?? "",
     description: item.description ?? "",
     barcode: initialBarcode,
+    needs_review: item.needs_review ?? false,
   });
   const [busy, setBusy] = useState(false);
-  // Whether the admin has overridden the auto-filled name / description. Until then we keep them in
-  // sync with the selected type so picking a type fills sensible, overridable defaults.
   const [nameTouched, setNameTouched] = useState(isEdit || Boolean(item.name));
   const [descTouched, setDescTouched] = useState(isEdit || Boolean(item.description));
   const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
 
-  // Only fields with a *program-derived* default get change-tracking, and only for new items:
-  //   • name        → "{type name} {existing count + 1}"
-  //   • description  → the selected type's description (blank if none)
-  //   • barcode      → the generated value
-  // Free-text / blank / constant fields (type, location, condition, price, date) have no logical
-  // default, so they aren't tracked. The name/description defaults only become meaningful once a
-  // type is picked; until then they mirror the current value so nothing reads as "changed".
   const selectedType = types.find((t) => t.id === form.item_type_id);
   const defaults = isEdit
     ? null
@@ -405,8 +799,6 @@ function ItemDialog({
         barcode: initialBarcode,
       };
 
-  // Choosing a type: open the new-type form for the sentinel, otherwise select it and (unless the
-  // admin has overridden them) fill the name and description defaults from that type.
   function selectType(typeId: string) {
     const t = types.find((x) => x.id === typeId);
     setForm((f) => ({
@@ -427,7 +819,6 @@ function ItemDialog({
     set("description", value);
   }
 
-  // Restore a tracked field to its default, re-enabling the type-driven auto-fill for name/description.
   function reset(key: "name" | "description" | "barcode") {
     if (!defaults) return;
     if (key === "name") setNameTouched(false);
@@ -438,8 +829,6 @@ function ItemDialog({
   async function save() {
     setBusy(true);
     try {
-      // When the description still matches the type's (the untouched default), store null so the
-      // item keeps inheriting from the type rather than freezing a denormalized copy.
       const description =
         defaults && form.description === defaults.description ? null : form.description || null;
       const payload = {
@@ -452,7 +841,7 @@ function ItemDialog({
         description,
       };
       if (isEdit) {
-        await api.updateItem(item.id!, payload);
+        await api.updateItem(item.id!, { ...payload, needs_review: form.needs_review });
       } else {
         await api.createItem({ ...payload, barcode: form.barcode || null });
       }
@@ -468,7 +857,6 @@ function ItemDialog({
         <Dialog.Title>{isEdit ? "Edit item" : "New item"}</Dialog.Title>
         <Flex direction="column" gap="3" mt="2">
           <Field label="Item type">
-            {/* Passive creation: choosing "+ Add new type…" opens the item-type form. */}
             <Select.Root
               value={form.item_type_id || undefined}
               onValueChange={(v) => (v === ADD_NEW_TYPE ? onAddType() : selectType(v))}
@@ -508,7 +896,7 @@ function ItemDialog({
               <Select.Root value={form.condition} onValueChange={(v) => set("condition", v)}>
                 <Select.Trigger style={{ width: "100%" }} />
                 <Select.Content>
-                  {["New", "Used", "Lost", "Damaged", "Discarded"].map((c) => (
+                  {CONDITIONS.map((c) => (
                     <Select.Item key={c} value={c}>
                       {c}
                     </Select.Item>
@@ -541,6 +929,24 @@ function ItemDialog({
           >
             <TextArea value={form.description} onChange={(e) => editDescription(e.target.value)} />
           </Field>
+          {isEdit && form.needs_review && (
+            <label>
+              <Flex
+                gap="2"
+                align="center"
+                p="2"
+                style={{ background: "var(--amber-2)", borderRadius: 6 }}
+              >
+                <Checkbox
+                  checked={form.needs_review}
+                  onCheckedChange={(c) => set("needs_review", c === true)}
+                />
+                <Text size="2">
+                  Needs review — flagged by a damage/loss report. Uncheck to clear.
+                </Text>
+              </Flex>
+            </label>
+          )}
           {!isEdit && (
             <Field
               label="Barcode"
@@ -569,33 +975,61 @@ function ItemDetailDialog({
   item,
   onClose,
   onEdit,
+  onChanged,
   onDeleted,
+  onPrint,
 }: {
   item: Item;
   onClose: () => void;
   onEdit: (i: Item) => void;
+  onChanged: (i: Item) => void;
   onDeleted: () => void;
+  onPrint: () => void;
 }) {
   const [events, setEvents] = useState<ItemEvent[]>([]);
-  const [printOpen, setPrintOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api.adminItemEvents(item.id).then(setEvents);
   }, [item.id]);
+
+  async function setStatus(status: ItemStatus) {
+    setBusy(true);
+    try {
+      const updated = await api.setItemStatus(item.id, status);
+      onChanged(updated);
+      setEvents(await api.adminItemEvents(item.id));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function remove() {
     await api.deleteItem(item.id);
     onDeleted();
   }
 
+  const statusActions: { status: ItemStatus; color?: "red" | "orange" }[] = [
+    { status: "Available" },
+    { status: "Unavailable", color: "orange" },
+    { status: "Lost", color: "red" },
+    { status: "Discarded", color: "red" },
+  ];
+
   return (
     <Dialog.Root open onOpenChange={(o) => !o && onClose()}>
       <Dialog.Content maxWidth="560px">
         <DialogHeader title={item.name} />
-        <Flex gap="2" align="center">
+        <Flex gap="2" align="center" wrap="wrap">
           <StatusBadge status={item.status} />
+          {item.needs_review && (
+            <Badge color="orange" variant="soft">
+              needs review
+            </Badge>
+          )}
           <Text size="2" color="gray">
-            {item.item_type_name} · {item.location ?? "no location"} · {item.barcode}
+            {item.item_type_name} · {item.condition} · {item.location ?? "no location"} ·{" "}
+            {item.barcode}
           </Text>
         </Flex>
         {item.holder_name && (
@@ -608,7 +1042,7 @@ function ItemDetailDialog({
           <Button size="1" variant="soft" onClick={() => onEdit(item)}>
             Edit
           </Button>
-          <Button size="1" variant="soft" onClick={() => setPrintOpen(true)}>
+          <Button size="1" variant="soft" onClick={onPrint}>
             Print tag
           </Button>
           <ConfirmButton
@@ -619,21 +1053,33 @@ function ItemDetailDialog({
           />
         </Flex>
 
-        <Separator my="4" size="4" />
+        <Separator my="3" size="4" />
+        <Text size="2" weight="medium">
+          Set status
+        </Text>
+        <Flex gap="2" mt="2" wrap="wrap">
+          {statusActions.map((a) => (
+            <Button
+              key={a.status}
+              size="1"
+              variant={item.status === a.status ? "solid" : "soft"}
+              color={a.color}
+              disabled={busy || item.status === a.status}
+              onClick={() => setStatus(a.status)}
+            >
+              {a.status}
+            </Button>
+          ))}
+        </Flex>
+        <Text size="1" color="gray" mt="1" as="p">
+          Checked out / Available also follow check-in/out at the kiosk.
+        </Text>
+
+        <Separator my="3" size="4" />
         <Heading size="3" mb="2">
           History
         </Heading>
         <HistoryList events={events} subject="item" />
-
-        <BarcodeLabelDialog
-          open={printOpen}
-          onOpenChange={setPrintOpen}
-          kind="Item tag"
-          title={item.name}
-          subtitle={item.item_type_name}
-          barcodeValue={item.barcode}
-          svgUrl={api.itemBarcodeSvg(item.id)}
-        />
       </Dialog.Content>
     </Dialog.Root>
   );
