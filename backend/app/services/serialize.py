@@ -146,6 +146,63 @@ async def serialize_items_bulk(session: AsyncSession, items: list[Item]) -> list
     return out
 
 
+async def serialize_read_rows(session: AsyncSession, rows: list) -> list[ItemRead]:
+    """Build `ItemRead`s from `item_read_query` rows: `(Item, status, holder_user_id, checked_at)`.
+
+    The derived status/holder/checkout time are already computed in SQL (so the filtered set and
+    the displayed status can't disagree); this only resolves the item-type and holder *names* in a
+    couple of batched queries. Use for the filtered list endpoints; `serialize_items_bulk` stays for
+    paths that start from plain `Item`s.
+    """
+    if not rows:
+        return []
+    items = [row[0] for row in rows]
+
+    type_ids = {i.item_type_id for i in items}
+    types = {
+        t.id: t
+        for t in (
+            await session.execute(select(ItemType).where(ItemType.id.in_(type_ids)))
+        ).scalars()
+    }
+
+    holder_ids = {row.holder_user_id for row in rows if row.holder_user_id is not None}
+    holders = (
+        {
+            u.id: u.name
+            for u in (await session.execute(select(User).where(User.id.in_(holder_ids)))).scalars()
+        }
+        if holder_ids
+        else {}
+    )
+
+    out: list[ItemRead] = []
+    for item, row in zip(items, rows, strict=True):
+        item_type = types.get(item.item_type_id)
+        holder_id = row.holder_user_id
+        out.append(
+            ItemRead(
+                id=item.id,
+                item_type_id=item.item_type_id,
+                name=item.name,
+                photo_url=item.photo_url or (item_type.photo_url if item_type else None),
+                description=item.description or (item_type.description if item_type else None),
+                purchase_price=item.purchase_price,
+                purchase_date=item.purchase_date,
+                location=item.location,
+                condition=item.condition,
+                needs_review=item.needs_review,
+                barcode=item.barcode,
+                item_type_name=item_type.name if item_type else None,
+                status=ItemStatus(row.status),
+                holder_user_id=holder_id,
+                holder_name=holders.get(holder_id) if holder_id else None,
+                checked_out_at=row.checked_out_at,
+            )
+        )
+    return out
+
+
 async def serialize_user_detail(session: AsyncSession, user: User) -> UserDetail:
     from app.models import Group
 
