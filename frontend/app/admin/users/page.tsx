@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Badge,
   Button,
   Callout,
   Dialog,
@@ -13,22 +12,17 @@ import {
   Text,
   TextField,
 } from "@radix-ui/themes";
-import {
-  DownloadIcon,
-  EyeOpenIcon,
-  IdCardIcon,
-  Pencil1Icon,
-  PlusIcon,
-  TrashIcon,
-  UploadIcon,
-} from "@radix-ui/react-icons";
+import { EyeOpenIcon, IdCardIcon, Pencil1Icon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
 
 import { AppShell } from "@/components/AppShell";
 import { ConfirmButton, ConfirmDialog, DialogFooter, DialogHeader } from "@/components/Dialogs";
 import { Field } from "@/components/Field";
 import { GroupedTable, type GroupNode } from "@/components/GroupedTable";
-import { HistoryList } from "@/components/HistoryList";
+import { HistoryList, StatusBadge } from "@/components/HistoryList";
+import { ImportExportButtons } from "@/components/ImportExportButtons";
 import { ImportResultDialog } from "@/components/ImportResultDialog";
+import { SelectionBar } from "@/components/SelectionBar";
+import { useSelection } from "@/hooks/useSelection";
 import { api, ApiError, downloadBlob } from "@/lib/api";
 import type {
   Group,
@@ -50,10 +44,6 @@ const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
 type DeleteTarget = { kind: "user" | "group"; id: string; name: string };
 type StatusFilter = "active" | "inactive" | "all";
 
-function UserStatusBadge({ status }: { status: UserStatus }) {
-  return <Badge color={status === "Active" ? "green" : "gray"}>{status}</Badge>;
-}
-
 export default function UsersPage() {
   const [tree, setTree] = useState<GroupTree[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -61,7 +51,7 @@ export default function UsersPage() {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
 
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const { selected, toggleOne, toggleMany, clear: clearSelection } = useSelection();
   const [editUser, setEditUser] = useState<Partial<UserRead> | null>(null);
   const [detailUser, setDetailUser] = useState<UserDetail | null>(null);
   const [editGroup, setEditGroup] = useState<Partial<Group> | null>(null);
@@ -70,7 +60,6 @@ export default function UsersPage() {
   const [batchDelete, setBatchDelete] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const importInput = useRef<HTMLInputElement>(null);
 
   const loadGroups = useCallback(async () => {
     setTree(await api.groupTree());
@@ -95,35 +84,6 @@ export default function UsersPage() {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Download failed.");
     }
-  }
-
-  const toggleOne = (id: string, checked: boolean) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  const toggleMany = (ids: string[], checked: boolean) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) checked ? next.add(id) : next.delete(id);
-      return next;
-    });
-  const clearSelection = () => setSelected(new Set());
-
-  function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    api
-      .importUsers(file)
-      .then((result) => {
-        setImportResult(result);
-        loadUsers();
-        loadGroups();
-      })
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Import failed."));
   }
 
   // Bucket the (filtered) users by their group, then nest into the group tree.
@@ -239,17 +199,17 @@ export default function UsersPage() {
           </Select.Root>
         </Flex>
         <Flex gap="2" wrap="wrap">
-          <Button
-            variant="soft"
-            color="gray"
-            onClick={() => download(api.usersXlsx(), "stocky-users.xlsx")}
-          >
-            <DownloadIcon /> .xlsx
-          </Button>
-          <Button variant="soft" color="gray" onClick={() => importInput.current?.click()}>
-            <UploadIcon /> Import
-          </Button>
-          <input ref={importInput} type="file" accept=".xlsx" hidden onChange={onImportFile} />
+          <ImportExportButtons
+            exportName="stocky-users.xlsx"
+            onExport={api.usersXlsx}
+            onImport={api.importUsers}
+            onImported={(r) => {
+              setImportResult(r);
+              loadUsers();
+              loadGroups();
+            }}
+            onError={setError}
+          />
           <Button variant="soft" onClick={() => setEditGroup({})}>
             <PlusIcon /> Group
           </Button>
@@ -265,36 +225,14 @@ export default function UsersPage() {
         </Callout.Root>
       )}
 
-      {selected.size > 0 && (
-        <Flex
-          mb="3"
-          p="2"
-          px="3"
-          gap="3"
-          align="center"
-          style={{ background: "var(--accent-3)", borderRadius: 6 }}
-        >
-          <Text size="2" weight="medium">
-            {selected.size} selected
-          </Text>
-          <Button size="1" variant="soft" onClick={() => setBatchOpen(true)}>
-            <Pencil1Icon /> Edit
-          </Button>
-          <Button
-            size="1"
-            variant="soft"
-            onClick={() => download(api.usersIdCardsPdf([...selected]), "id-cards.pdf")}
-          >
-            <IdCardIcon /> Print ID cards
-          </Button>
-          <Button size="1" variant="soft" color="red" onClick={() => setBatchDelete(true)}>
-            <TrashIcon /> Delete
-          </Button>
-          <Button size="1" variant="ghost" color="gray" onClick={clearSelection}>
-            Clear
-          </Button>
-        </Flex>
-      )}
+      <SelectionBar
+        count={selected.size}
+        onEdit={() => setBatchOpen(true)}
+        onPrint={() => download(api.usersIdCardsPdf([...selected]), "id-cards.pdf")}
+        printLabel="Print ID cards"
+        onDelete={() => setBatchDelete(true)}
+        onClear={clearSelection}
+      />
 
       <GroupedTable
         groups={groupNodes}
@@ -306,7 +244,7 @@ export default function UsersPage() {
         onToggleMany={toggleMany}
         columns={[
           { header: "Name", cell: (u) => u.name },
-          { header: "Status", cell: (u) => <UserStatusBadge status={u.status} /> },
+          { header: "Status", cell: (u) => <StatusBadge status={u.status} /> },
           {
             header: "Barcode",
             cell: (u) => (
@@ -644,7 +582,7 @@ function UserDetailDialog({
       <Dialog.Content maxWidth="560px">
         <DialogHeader title={user.name} />
         <Flex gap="2" align="center">
-          <UserStatusBadge status={user.status} />
+          <StatusBadge status={user.status} />
           <Text size="2" color="gray">
             {user.group_name ?? "No group"} · {user.barcode}
           </Text>

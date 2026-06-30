@@ -140,7 +140,6 @@ export const api = {
   deleteUser: (id: string) => del(`/api/admin/users/${id}`),
   regenerateUserBarcode: (id: string) => post<UserDetail>(`/api/admin/users/${id}/barcode`),
   userEvents: (id: string) => get<ItemEvent[]>(`/api/admin/users/${id}/events`),
-  userBarcodeSvg: (id: string) => `${BASE}/api/admin/users/${id}/barcode.svg`,
   batchUpdateUsers: (ids: string[], patch: { group_id?: string | null; status?: UserStatus }) =>
     request<UserRead[]>("/api/admin/users/batch", {
       method: "PATCH",
@@ -165,7 +164,6 @@ export const api = {
   updateItem: (id: string, b: Record<string, unknown>) => patch<Item>(`/api/admin/items/${id}`, b),
   deleteItem: (id: string) => del(`/api/admin/items/${id}`),
   adminItemEvents: (id: string) => get<ItemEvent[]>(`/api/admin/items/${id}/events`),
-  itemBarcodeSvg: (id: string) => `${BASE}/api/admin/items/${id}/barcode.svg`,
   locations: () => get<string[]>("/api/admin/locations"),
   manufacturers: () => get<string[]>("/api/admin/manufacturers"),
   setItemStatus: (id: string, status: ItemStatus, note?: string) =>

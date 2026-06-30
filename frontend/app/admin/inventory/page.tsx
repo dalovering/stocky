@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Badge,
   Button,
   Callout,
   Checkbox,
@@ -17,23 +16,24 @@ import {
   TextField,
 } from "@radix-ui/themes";
 import {
-  DownloadIcon,
   ExclamationTriangleIcon,
   EyeOpenIcon,
   IdCardIcon,
   Pencil1Icon,
   PlusIcon,
   TrashIcon,
-  UploadIcon,
 } from "@radix-ui/react-icons";
 
 import { AppShell } from "@/components/AppShell";
 import { ConfirmButton, ConfirmDialog, DialogFooter, DialogHeader } from "@/components/Dialogs";
 import { Field, isModified } from "@/components/Field";
 import { GroupedTable, type GroupNode } from "@/components/GroupedTable";
-import { HistoryList, StatusBadge } from "@/components/HistoryList";
+import { HistoryList, ReviewBadge, StatusBadge } from "@/components/HistoryList";
+import { ImportExportButtons } from "@/components/ImportExportButtons";
 import { ImportResultDialog } from "@/components/ImportResultDialog";
 import { PassiveSelect } from "@/components/PassiveSelect";
+import { SelectionBar } from "@/components/SelectionBar";
+import { useSelection } from "@/hooks/useSelection";
 import { api, ApiError, downloadBlob } from "@/lib/api";
 import {
   CONDITIONS,
@@ -81,7 +81,7 @@ export default function InventoryAdminPage() {
   const [conditionFilter, setConditionFilter] = useState<Condition | "all">("all");
   const [reviewOnly, setReviewOnly] = useState(false);
 
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const { selected, toggleOne, toggleMany, clear: clearSelection } = useSelection();
   const [editType, setEditType] = useState<Partial<ItemType> | null>(null);
   const [editItem, setEditItem] = useState<Partial<Item> | null>(null);
   const [detailItem, setDetailItem] = useState<Item | null>(null);
@@ -90,7 +90,6 @@ export default function InventoryAdminPage() {
   const [batchDelete, setBatchDelete] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const importInput = useRef<HTMLInputElement>(null);
 
   const loadAll = useCallback(async () => {
     const [t, l, m] = await Promise.all([api.itemTypes(), api.locations(), api.manufacturers()]);
@@ -119,21 +118,6 @@ export default function InventoryAdminPage() {
       setError(e instanceof ApiError ? e.message : "Download failed.");
     }
   }
-
-  const toggleOne = (id: string, checked: boolean) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  const toggleMany = (ids: string[], checked: boolean) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) checked ? next.add(id) : next.delete(id);
-      return next;
-    });
-  const clearSelection = () => setSelected(new Set());
 
   // Filter the items (search + status/condition/needs-review), then bucket by type. Headers stay
   // stable while searching. Default hides Lost/Discarded items.
@@ -190,20 +174,6 @@ export default function InventoryAdminPage() {
       };
     });
   }, [types, items, q, statusFilter, conditionFilter, reviewOnly]);
-
-  function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    api
-      .importItems(file)
-      .then((result) => {
-        setImportResult(result);
-        loadItems();
-        loadAll();
-      })
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Import failed."));
-  }
 
   async function confirmDelete() {
     if (!del) return;
@@ -274,17 +244,17 @@ export default function InventoryAdminPage() {
           </Select.Root>
         </Flex>
         <Flex gap="2" wrap="wrap">
-          <Button
-            variant="soft"
-            color="gray"
-            onClick={() => download(api.itemsXlsx(), "stocky-items.xlsx")}
-          >
-            <DownloadIcon /> .xlsx
-          </Button>
-          <Button variant="soft" color="gray" onClick={() => importInput.current?.click()}>
-            <UploadIcon /> Import
-          </Button>
-          <input ref={importInput} type="file" accept=".xlsx" hidden onChange={onImportFile} />
+          <ImportExportButtons
+            exportName="stocky-items.xlsx"
+            onExport={api.itemsXlsx}
+            onImport={api.importItems}
+            onImported={(r) => {
+              setImportResult(r);
+              loadItems();
+              loadAll();
+            }}
+            onError={setError}
+          />
           <Button variant="soft" onClick={() => setEditType({})}>
             <PlusIcon /> Type
           </Button>
@@ -317,36 +287,14 @@ export default function InventoryAdminPage() {
         </Callout.Root>
       )}
 
-      {selected.size > 0 && (
-        <Flex
-          mb="3"
-          p="2"
-          px="3"
-          gap="3"
-          align="center"
-          style={{ background: "var(--accent-3)", borderRadius: 6 }}
-        >
-          <Text size="2" weight="medium">
-            {selected.size} selected
-          </Text>
-          <Button size="1" variant="soft" onClick={() => setBatchOpen(true)}>
-            <Pencil1Icon /> Edit
-          </Button>
-          <Button
-            size="1"
-            variant="soft"
-            onClick={() => download(api.itemsTagsPdf([...selected]), "item-tags.pdf")}
-          >
-            <IdCardIcon /> Print tags
-          </Button>
-          <Button size="1" variant="soft" color="red" onClick={() => setBatchDelete(true)}>
-            <TrashIcon /> Delete
-          </Button>
-          <Button size="1" variant="ghost" color="gray" onClick={clearSelection}>
-            Clear
-          </Button>
-        </Flex>
-      )}
+      <SelectionBar
+        count={selected.size}
+        onEdit={() => setBatchOpen(true)}
+        onPrint={() => download(api.itemsTagsPdf([...selected]), "item-tags.pdf")}
+        printLabel="Print tags"
+        onDelete={() => setBatchDelete(true)}
+        onClear={clearSelection}
+      />
 
       <GroupedTable
         groups={groupNodes}
@@ -365,11 +313,7 @@ export default function InventoryAdminPage() {
             cell: (i) => (
               <Flex gap="1" align="center">
                 <StatusBadge status={i.status} />
-                {i.needs_review && (
-                  <Badge color="orange" variant="soft">
-                    review
-                  </Badge>
-                )}
+                {i.needs_review && <ReviewBadge />}
               </Flex>
             ),
           },
@@ -981,11 +925,7 @@ function ItemDetailDialog({
         <DialogHeader title={item.name} />
         <Flex gap="2" align="center" wrap="wrap">
           <StatusBadge status={item.status} />
-          {item.needs_review && (
-            <Badge color="orange" variant="soft">
-              needs review
-            </Badge>
-          )}
+          {item.needs_review && <ReviewBadge />}
           <Text size="2" color="gray">
             {item.item_type_name} · {item.condition} · {item.location ?? "no location"} ·{" "}
             {item.barcode}

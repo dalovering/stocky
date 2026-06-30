@@ -82,13 +82,27 @@ export function HistoryList({
 }
 
 const STATUS_COLOR: Record<string, "green" | "blue" | "orange" | "red" | "gray"> = {
+  // Item statuses
   Available: "green",
   "Checked out": "blue",
   Unavailable: "orange",
   Lost: "red",
   Discarded: "gray",
+  // User statuses
+  Active: "green",
+  Inactive: "gray",
 };
 
+/** Coloured badge for an item or user status. */
 export function StatusBadge({ status }: { status: string }) {
   return <Badge color={STATUS_COLOR[status] ?? "gray"}>{status}</Badge>;
+}
+
+/** The "needs review" flag shown on flagged items. */
+export function ReviewBadge() {
+  return (
+    <Badge color="orange" variant="soft">
+      review
+    </Badge>
+  );
 }
