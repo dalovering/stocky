@@ -119,6 +119,16 @@ export default function InventoryAdminPage() {
     }
   }
 
+  // The needs-review banner is a shortcut to "show me everything flagged": entering it clears the
+  // status/condition filters so no flagged item (e.g. a Lost one) is hidden; leaving it restores
+  // the standard default view.
+  function toggleReviewOnly() {
+    const next = !reviewOnly;
+    setReviewOnly(next);
+    setStatusSel(new Set(next ? ITEM_STATUSES : ACTIVE_ITEM_STATUSES));
+    setConditionSel(new Set(CONDITIONS));
+  }
+
   // Filter the items (search + status/condition/needs-review), then bucket by type. Headers stay
   // stable while searching. Default hides Lost/Discarded items.
   const groupNodes = useMemo<GroupNode<Item>[]>(() => {
@@ -251,7 +261,7 @@ export default function InventoryAdminPage() {
         <Callout.Root
           color="orange"
           mb="3"
-          onClick={() => setReviewOnly((v) => !v)}
+          onClick={toggleReviewOnly}
           style={{ cursor: "pointer" }}
         >
           <Callout.Icon>
@@ -259,7 +269,7 @@ export default function InventoryAdminPage() {
           </Callout.Icon>
           <Callout.Text>
             {needsReviewCount} {needsReviewCount === 1 ? "item needs" : "items need"} review.{" "}
-            {reviewOnly ? "Showing them — click to show all." : "Click to show only these."}
+            {reviewOnly ? "Click to show all" : "Click to filter to review items"}
           </Callout.Text>
         </Callout.Root>
       )}
