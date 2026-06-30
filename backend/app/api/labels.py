@@ -11,8 +11,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin
+from app.api.responses import pdf_response
 from app.core.db import get_session
-from app.models import Group, Item, ItemType, User
+from app.models import Item, User
 from app.services import cards as cards_svc
 
 router = APIRouter(
@@ -23,30 +24,10 @@ router = APIRouter(
 @router.get("/labels.pdf")
 async def labels_pdf(session: AsyncSession = Depends(get_session)) -> Response:
     """Render the multi-up sheet: every user ID card, then every item tag."""
-    group_names = {g.id: g.name for g in (await session.execute(select(Group))).scalars()}
-    users = (await session.execute(select(User).order_by(User.name))).scalars()
-    id_cards = [
-        cards_svc.CardData(
-            title=u.name, subtitle=group_names.get(u.group_id), extra=None, barcode=u.barcode
-        )
-        for u in users
-    ]
-
-    type_names = {t.id: t.name for t in (await session.execute(select(ItemType))).scalars()}
-    items = (await session.execute(select(Item).order_by(Item.name))).scalars()
-    item_tags = [
-        cards_svc.CardData(
-            title=i.name,
-            subtitle=type_names.get(i.item_type_id),
-            extra=i.location,
-            barcode=i.barcode,
-        )
-        for i in items
-    ]
-
-    pdf = cards_svc.render_multi_up(id_cards, item_tags)
-    return Response(
-        content=pdf,
-        media_type="application/pdf",
-        headers={"Content-Disposition": 'inline; filename="stocky-cards.pdf"'},
+    users = list((await session.execute(select(User).order_by(User.name))).scalars())
+    items = list((await session.execute(select(Item).order_by(Item.name))).scalars())
+    pdf = cards_svc.render_multi_up(
+        await cards_svc.build_user_cards(session, users),
+        await cards_svc.build_item_cards(session, items),
     )
+    return pdf_response(pdf, "stocky-cards.pdf")

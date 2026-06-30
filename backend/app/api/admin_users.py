@@ -9,6 +9,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import ensure_unique_barcode, require_admin
+from app.api.responses import pdf_response, xlsx_response
 from app.core.db import get_session
 from app.models import Event, Group, User
 from app.schemas.group import GroupCreate, GroupRead, GroupTree, GroupUpdate
@@ -18,29 +19,10 @@ from app.schemas.user import UserBatchUpdate, UserCreate, UserDetail, UserRead, 
 from app.services import barcode as barcode_svc
 from app.services import cards as cards_svc
 from app.services import spreadsheet as spreadsheet_svc
+from app.services.queries import group_names
 from app.services.serialize import loan_count, serialize_event, serialize_user_detail
 
 router = APIRouter(prefix="/api/admin", tags=["admin:users"], dependencies=[Depends(require_admin)])
-
-XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-
-def _pdf_response(content: bytes, filename: str) -> Response:
-    return Response(
-        content=content,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{filename}"'},
-    )
-
-
-async def _user_cards(session: AsyncSession, users: list[User]) -> list[cards_svc.CardData]:
-    groups = {g.id: g.name for g in (await session.execute(select(Group))).scalars()}
-    return [
-        cards_svc.CardData(
-            title=u.name, subtitle=groups.get(u.group_id), extra=None, barcode=u.barcode
-        )
-        for u in users
-    ]
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +125,7 @@ async def list_users(
         stmt = stmt.where(User.name.ilike(f"%{q}%"))
     users = list((await session.execute(stmt.order_by(User.name))).scalars().all())
 
-    groups = {g.id: g.name for g in (await session.execute(select(Group))).scalars().all()}
+    groups = await group_names(session)
     out: list[UserRead] = []
     for user in users:
         out.append(
@@ -176,12 +158,7 @@ async def create_user(body: UserCreate, session: AsyncSession = Depends(get_sess
 # ---------------------------------------------------------------------------
 @router.get("/users.xlsx")
 async def export_users(session: AsyncSession = Depends(get_session)) -> Response:
-    content = await spreadsheet_svc.users_workbook(session)
-    return Response(
-        content=content,
-        media_type=XLSX_MEDIA_TYPE,
-        headers={"Content-Disposition": 'attachment; filename="stocky-users.xlsx"'},
-    )
+    return xlsx_response(await spreadsheet_svc.users_workbook(session), "stocky-users.xlsx")
 
 
 @router.post("/users/import", response_model=ImportResult)
@@ -202,8 +179,10 @@ async def users_id_cards_pdf(
         else []
     )
     users.sort(key=lambda u: u.name)
-    pdf = cards_svc.render_per_page(cards_svc.ID_CARD, await _user_cards(session, users))
-    return _pdf_response(pdf, "stocky-id-cards.pdf")
+    pdf = cards_svc.render_per_page(
+        cards_svc.ID_CARD, await cards_svc.build_user_cards(session, users)
+    )
+    return pdf_response(pdf, "stocky-id-cards.pdf")
 
 
 @router.patch("/users/batch", response_model=list[UserRead])
@@ -222,7 +201,7 @@ async def batch_update_users(
         session.add(user)
     await session.commit()
 
-    groups = {g.id: g.name for g in (await session.execute(select(Group))).scalars().all()}
+    groups = await group_names(session)
     out: list[UserRead] = []
     for user in users:
         out.append(
@@ -308,16 +287,6 @@ async def user_events(
     return [await serialize_event(session, e) for e in result.scalars().all()]
 
 
-@router.get("/users/{user_id}/barcode.svg")
-async def user_barcode_svg(
-    user_id: uuid.UUID, session: AsyncSession = Depends(get_session)
-) -> Response:
-    user = await session.get(User, user_id)
-    if user is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found.")
-    return Response(content=barcode_svc.render_svg(user.barcode), media_type="image/svg+xml")
-
-
 @router.get("/users/{user_id}/id-card.pdf")
 async def user_id_card_pdf(
     user_id: uuid.UUID, session: AsyncSession = Depends(get_session)
@@ -326,8 +295,8 @@ async def user_id_card_pdf(
     user = await session.get(User, user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found.")
-    (card,) = await _user_cards(session, [user])
-    return _pdf_response(cards_svc.render_single(cards_svc.ID_CARD, card), "stocky-id-card.pdf")
+    (card,) = await cards_svc.build_user_cards(session, [user])
+    return pdf_response(cards_svc.render_single(cards_svc.ID_CARD, card), "stocky-id-card.pdf")
 
 
 @router.get("/groups/{group_id}/id-cards.pdf")
@@ -340,5 +309,7 @@ async def group_id_cards_pdf(
         .scalars()
         .all()
     )
-    pdf = cards_svc.render_per_page(cards_svc.ID_CARD, await _user_cards(session, users))
-    return _pdf_response(pdf, "stocky-id-cards.pdf")
+    pdf = cards_svc.render_per_page(
+        cards_svc.ID_CARD, await cards_svc.build_user_cards(session, users)
+    )
+    return pdf_response(pdf, "stocky-id-cards.pdf")

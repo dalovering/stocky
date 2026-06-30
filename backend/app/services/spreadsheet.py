@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Condition, Event, EventType, Group, Item, ItemType, User, UserStatus
 from app.schemas.imports import ImportResult, RowError
 from app.services import barcode as barcode_svc
+from app.services.queries import group_names, item_type_names
 
 USER_HEADERS = ["action", "id", "barcode", "name", "group", "status"]
 ITEM_HEADERS = [
@@ -89,40 +90,11 @@ def _parse_enum[E](enum_cls: type[E], value: object, field: str) -> E:
         raise ValueError(f"Invalid {field} {text!r} (allowed: {allowed}).") from exc
 
 
-async def _gen_unique_barcode(session: AsyncSession, model: type, prefix: str) -> str:
-    for _ in range(10):
-        code = barcode_svc.generate_code(prefix)
-        if (
-            await session.execute(select(model).where(model.barcode == code))
-        ).scalar_one_or_none() is None:
-            return code
-    raise ValueError("Could not allocate a unique barcode.")
-
-
-async def _resolve_barcode(
-    session: AsyncSession,
-    model: type,
-    prefix: str,
-    proposed: str | None,
-    current: str | None = None,
-) -> str:
-    if proposed:
-        if proposed == current:
-            return proposed
-        taken = (
-            await session.execute(select(model).where(model.barcode == proposed))
-        ).scalar_one_or_none()
-        if taken is not None:
-            raise ValueError(f"Barcode {proposed!r} already in use.")
-        return proposed
-    return current or await _gen_unique_barcode(session, model, prefix)
-
-
 # ---------------------------------------------------------------------------
 # Users
 # ---------------------------------------------------------------------------
 async def users_workbook(session: AsyncSession) -> bytes:
-    groups = {g.id: g.name for g in (await session.execute(select(Group))).scalars()}
+    groups = await group_names(session)
     users = (await session.execute(select(User).order_by(User.name))).scalars()
     rows = [
         ["", str(u.id), u.barcode, u.name, groups.get(u.group_id, ""), str(u.status)] for u in users
@@ -166,7 +138,7 @@ async def import_users(session: AsyncSession, content: bytes) -> ImportResult:
                     name=name,
                     group_id=resolve_group(rec),
                     status=_parse_enum(UserStatus, rec.get("status") or "Active", "status"),
-                    barcode=await _resolve_barcode(
+                    barcode=await barcode_svc.allocate_barcode(
                         session, User, barcode_svc.USER_PREFIX, _text(rec.get("barcode"))
                     ),
                 )
@@ -184,7 +156,7 @@ async def import_users(session: AsyncSession, content: bytes) -> ImportResult:
                 if _text(rec.get("status")):
                     user.status = _parse_enum(UserStatus, rec["status"], "status")
                 if _text(rec.get("barcode")):
-                    user.barcode = await _resolve_barcode(
+                    user.barcode = await barcode_svc.allocate_barcode(
                         session, User, barcode_svc.USER_PREFIX, _text(rec["barcode"]), user.barcode
                     )
                 session.add(user)
@@ -200,7 +172,7 @@ async def import_users(session: AsyncSession, content: bytes) -> ImportResult:
                 result.deleted += 1
             else:
                 raise ValueError(f"Unknown action {action!r} (use C, U, or D).")
-        except ValueError as exc:
+        except (ValueError, barcode_svc.BarcodeConflict) as exc:
             result.errors.append(RowError(row=number, message=str(exc)))
 
     await session.commit()
@@ -211,7 +183,7 @@ async def import_users(session: AsyncSession, content: bytes) -> ImportResult:
 # Items
 # ---------------------------------------------------------------------------
 async def items_workbook(session: AsyncSession) -> bytes:
-    types = {t.id: t.name for t in (await session.execute(select(ItemType))).scalars()}
+    types = await item_type_names(session)
     items = (await session.execute(select(Item).order_by(Item.name))).scalars()
     rows = [
         [
@@ -267,7 +239,7 @@ async def import_items(session: AsyncSession, content: bytes) -> ImportResult:
                     location=_text(rec.get("location")),
                     condition=_parse_enum(Condition, rec.get("condition") or "New", "condition"),
                     needs_review=_parse_bool(rec.get("needs_review")),
-                    barcode=await _resolve_barcode(
+                    barcode=await barcode_svc.allocate_barcode(
                         session, Item, barcode_svc.ITEM_PREFIX, _text(rec.get("barcode"))
                     ),
                 )
@@ -290,7 +262,7 @@ async def import_items(session: AsyncSession, content: bytes) -> ImportResult:
                 if _text(rec.get("needs_review")) is not None:
                     item.needs_review = _parse_bool(rec.get("needs_review"))
                 if _text(rec.get("barcode")):
-                    item.barcode = await _resolve_barcode(
+                    item.barcode = await barcode_svc.allocate_barcode(
                         session, Item, barcode_svc.ITEM_PREFIX, _text(rec["barcode"]), item.barcode
                     )
                 session.add(item)
@@ -304,7 +276,7 @@ async def import_items(session: AsyncSession, content: bytes) -> ImportResult:
                 result.deleted += 1
             else:
                 raise ValueError(f"Unknown action {action!r} (use C, U, or D).")
-        except ValueError as exc:
+        except (ValueError, barcode_svc.BarcodeConflict) as exc:
             result.errors.append(RowError(row=number, message=str(exc)))
 
     await session.commit()

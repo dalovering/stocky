@@ -24,7 +24,11 @@ from reportlab.graphics.shapes import Drawing
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
+from sqlalchemy.ext.asyncio import AsyncSession
 from svglib.svglib import svg2rlg
+
+from app.models import Item, User
+from app.services.queries import group_names, item_type_names
 
 _TEMPLATES = Path(__file__).resolve().parent.parent / "templates"
 
@@ -46,6 +50,26 @@ class CardData:
     subtitle: str | None
     extra: str | None
     barcode: str
+
+
+async def build_item_cards(session: AsyncSession, items: list[Item]) -> list[CardData]:
+    """Item tags: title=name, subtitle=type, extra=location."""
+    types = await item_type_names(session)
+    return [
+        CardData(
+            title=i.name, subtitle=types.get(i.item_type_id), extra=i.location, barcode=i.barcode
+        )
+        for i in items
+    ]
+
+
+async def build_user_cards(session: AsyncSession, users: list[User]) -> list[CardData]:
+    """ID cards: title=name, subtitle=group."""
+    groups = await group_names(session)
+    return [
+        CardData(title=u.name, subtitle=groups.get(u.group_id), extra=None, barcode=u.barcode)
+        for u in users
+    ]
 
 
 def _fill_template(spec: CardSpec, data: CardData) -> str:

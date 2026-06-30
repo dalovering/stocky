@@ -9,6 +9,7 @@ from sqlalchemy import delete, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import ensure_unique_barcode, require_admin
+from app.api.responses import pdf_response, xlsx_response
 from app.core.db import get_session
 from app.models import Event, EventType, Item, ItemStatus, ItemType
 from app.schemas.imports import ImportResult
@@ -31,30 +32,6 @@ from app.services import events as event_svc
 from app.services import spreadsheet as spreadsheet_svc
 from app.services.queries import distinct_locations_query, item_filter_query
 from app.services.serialize import serialize_event, serialize_item, serialize_items_bulk
-
-XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-
-def _pdf_response(content: bytes, filename: str) -> Response:
-    return Response(
-        content=content,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{filename}"'},
-    )
-
-
-async def _item_cards(session: AsyncSession, items: list[Item]) -> list[cards_svc.CardData]:
-    types = {t.id: t.name for t in (await session.execute(select(ItemType))).scalars()}
-    return [
-        cards_svc.CardData(
-            title=i.name,
-            subtitle=types.get(i.item_type_id),
-            extra=i.location,
-            barcode=i.barcode,
-        )
-        for i in items
-    ]
-
 
 router = APIRouter(
     prefix="/api/admin", tags=["admin:inventory"], dependencies=[Depends(require_admin)]
@@ -257,18 +234,15 @@ async def items_tags_pdf(body: IdList, session: AsyncSession = Depends(get_sessi
     """Item tags for a selection of items, one per page."""
     items = await _items_by_ids(session, body.ids)
     items.sort(key=lambda i: i.name)
-    pdf = cards_svc.render_per_page(cards_svc.ITEM_TAG, await _item_cards(session, items))
-    return _pdf_response(pdf, "stocky-item-tags.pdf")
+    pdf = cards_svc.render_per_page(
+        cards_svc.ITEM_TAG, await cards_svc.build_item_cards(session, items)
+    )
+    return pdf_response(pdf, "stocky-item-tags.pdf")
 
 
 @router.get("/items.xlsx")
 async def export_items(session: AsyncSession = Depends(get_session)) -> Response:
-    content = await spreadsheet_svc.items_workbook(session)
-    return Response(
-        content=content,
-        media_type=XLSX_MEDIA_TYPE,
-        headers={"Content-Disposition": 'attachment; filename="stocky-items.xlsx"'},
-    )
+    return xlsx_response(await spreadsheet_svc.items_workbook(session), "stocky-items.xlsx")
 
 
 @router.post("/items/import", response_model=ImportResult)
@@ -338,16 +312,6 @@ async def item_events(
     return [await serialize_event(session, e) for e in result.scalars().all()]
 
 
-@router.get("/items/{item_id}/barcode.svg")
-async def item_barcode_svg(
-    item_id: uuid.UUID, session: AsyncSession = Depends(get_session)
-) -> Response:
-    item = await session.get(Item, item_id)
-    if item is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found.")
-    return Response(content=barcode_svc.render_svg(item.barcode), media_type="image/svg+xml")
-
-
 @router.get("/items/{item_id}/tag.pdf")
 async def item_tag_pdf(
     item_id: uuid.UUID, session: AsyncSession = Depends(get_session)
@@ -356,8 +320,8 @@ async def item_tag_pdf(
     item = await session.get(Item, item_id)
     if item is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found.")
-    (card,) = await _item_cards(session, [item])
-    return _pdf_response(cards_svc.render_single(cards_svc.ITEM_TAG, card), "stocky-item-tag.pdf")
+    (card,) = await cards_svc.build_item_cards(session, [item])
+    return pdf_response(cards_svc.render_single(cards_svc.ITEM_TAG, card), "stocky-item-tag.pdf")
 
 
 @router.get("/item-types/{type_id}/tags.pdf")
@@ -374,5 +338,7 @@ async def item_type_tags_pdf(
         .scalars()
         .all()
     )
-    pdf = cards_svc.render_per_page(cards_svc.ITEM_TAG, await _item_cards(session, items))
-    return _pdf_response(pdf, "stocky-item-tags.pdf")
+    pdf = cards_svc.render_per_page(
+        cards_svc.ITEM_TAG, await cards_svc.build_item_cards(session, items)
+    )
+    return pdf_response(pdf, "stocky-item-tags.pdf")

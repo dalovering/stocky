@@ -10,8 +10,19 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Select, distinct, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Event, EventType, Item, User
+from app.models import Event, EventType, Group, Item, ItemType, User
+
+
+async def group_names(session: AsyncSession) -> dict[uuid.UUID, str]:
+    """id -> name for every group (for resolving group_id to a display name)."""
+    return {g.id: g.name for g in (await session.execute(select(Group))).scalars()}
+
+
+async def item_type_names(session: AsyncSession) -> dict[uuid.UUID, str]:
+    """id -> name for every item type."""
+    return {t.id: t.name for t in (await session.execute(select(ItemType))).scalars()}
 
 
 def item_filter_query(
