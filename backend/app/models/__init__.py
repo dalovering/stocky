@@ -1,6 +1,6 @@
 """SQLModel table definitions."""
 
-from app.models.enums import Condition, EventType, ItemStatus
+from app.models.enums import Condition, EventType, ItemStatus, UserStatus
 from app.models.event import Event
 from app.models.group import Group
 from app.models.item import Item
@@ -11,6 +11,7 @@ __all__ = [
     "Condition",
     "EventType",
     "ItemStatus",
+    "UserStatus",
     "Event",
     "Group",
     "Item",

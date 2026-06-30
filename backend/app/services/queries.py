@@ -31,6 +31,4 @@ def item_filter_query(
 
 def distinct_locations_query() -> Select:
     """Distinct, non-null item locations ordered alphabetically (for location pickers)."""
-    return (
-        select(distinct(Item.location)).where(Item.location.is_not(None)).order_by(Item.location)
-    )
+    return select(distinct(Item.location)).where(Item.location.is_not(None)).order_by(Item.location)

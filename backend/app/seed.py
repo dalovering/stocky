@@ -78,14 +78,14 @@ async def _seed() -> None:
                 item_type_id=calculator.id,
                 name="Calculator #2",
                 location="Cabinet A",
-                condition=Condition.USED,
+                condition=Condition.GOOD,
                 barcode=barcode_svc.generate_item_code(),
             ),
             Item(
                 item_type_id=novel.id,
                 name="Mockingbird Copy 1",
                 location="Shelf 3",
-                condition=Condition.USED,
+                condition=Condition.FAIR,
                 barcode=barcode_svc.generate_item_code(),
             ),
             Item(

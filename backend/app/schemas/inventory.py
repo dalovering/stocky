@@ -80,6 +80,7 @@ class ItemUpdate(BaseModel):
     purchase_date: date | None = None
     location: str | None = None
     condition: Condition | None = None
+    needs_review: bool | None = None
 
 
 class ItemRead(BaseModel):
@@ -94,6 +95,7 @@ class ItemRead(BaseModel):
     purchase_date: date | None
     location: str | None
     condition: Condition
+    needs_review: bool = False
     barcode: str
     # Derived/enriched fields:
     item_type_name: str | None = None

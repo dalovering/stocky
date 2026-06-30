@@ -13,7 +13,7 @@ from app.models import Item, ItemType
 from app.models.enums import ItemStatus
 from app.schemas.inventory import EventRead, InventorySummaryRow, ItemRead
 from app.services.queries import distinct_locations_query, item_filter_query
-from app.services.serialize import serialize_event, serialize_item
+from app.services.serialize import serialize_event, serialize_item, serialize_items_bulk
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 
@@ -28,7 +28,7 @@ async def browse_items(
     """Search/filter items. Read-only — there are no write routes in this module."""
     stmt = item_filter_query(q, type_id, location)
     items = list((await session.execute(stmt)).scalars().all())
-    return [await serialize_item(session, item) for item in items]
+    return await serialize_items_bulk(session, items)
 
 
 @router.get("/items/{item_id}", response_model=ItemRead)
@@ -64,9 +64,10 @@ async def summary(session: AsyncSession = Depends(get_session)) -> list[Inventor
     """Rollup of quantities per item type + location with availability counts."""
     types = {t.id: t.name for t in (await session.execute(select(ItemType))).scalars().all()}
     items = list((await session.execute(select(Item))).scalars().all())
+    serialized = await serialize_items_bulk(session, items)
 
     rows: dict[tuple[uuid.UUID, str | None], InventorySummaryRow] = {}
-    for item in items:
+    for item, view in zip(items, serialized, strict=True):
         key = (item.item_type_id, item.location)
         row = rows.get(key)
         if row is None:
@@ -77,9 +78,8 @@ async def summary(session: AsyncSession = Depends(get_session)) -> list[Inventor
             )
             rows[key] = row
         row.total += 1
-        serialized = await serialize_item(session, item)
-        if serialized.status == ItemStatus.AVAILABLE:
+        if view.status == ItemStatus.AVAILABLE:
             row.available += 1
-        elif serialized.status == ItemStatus.ON_LOAN:
+        elif view.status == ItemStatus.CHECKED_OUT:
             row.on_loan += 1
     return sorted(rows.values(), key=lambda r: (r.item_type_name, r.location or ""))

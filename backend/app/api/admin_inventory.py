@@ -22,7 +22,7 @@ from app.schemas.inventory import (
 )
 from app.services import barcode as barcode_svc
 from app.services.queries import distinct_locations_query, item_filter_query
-from app.services.serialize import serialize_event, serialize_item
+from app.services.serialize import serialize_event, serialize_item, serialize_items_bulk
 
 router = APIRouter(
     prefix="/api/admin", tags=["admin:inventory"], dependencies=[Depends(require_admin)]
@@ -132,7 +132,7 @@ async def list_items(
 ) -> list[ItemRead]:
     stmt = item_filter_query(q, type_id, location)
     items = list((await session.execute(stmt)).scalars().all())
-    return [await serialize_item(session, item) for item in items]
+    return await serialize_items_bulk(session, items)
 
 
 @router.post("/items", response_model=ItemRead, status_code=status.HTTP_201_CREATED)
