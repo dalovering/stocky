@@ -1,34 +1,105 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Dialog, Flex, Heading, Select, Separator, Text, TextField } from "@radix-ui/themes";
+import { Dialog, Flex, Heading, Separator, Text } from "@radix-ui/themes";
 
 import { AppShell } from "@/components/AppShell";
 import { DialogHeader } from "@/components/Dialogs";
+import { FilterBar } from "@/components/FilterBar";
 import { GroupedTable, type GroupNode } from "@/components/GroupedTable";
 import { HistoryList, StatusBadge } from "@/components/HistoryList";
+import { MultiSelectFilter } from "@/components/MultiSelectFilter";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { api } from "@/lib/api";
-import type { Item, ItemEvent } from "@/lib/types";
+import {
+  ACTIVE_ITEM_STATUSES,
+  CONDITIONS,
+  ITEM_STATUSES,
+  type Condition,
+  type Item,
+  type ItemEvent,
+  type ItemStatus,
+} from "@/lib/types";
+
+const NO_LOCATION = "__none__";
+
+function setsEqual<T>(set: Set<T>, values: readonly T[]): boolean {
+  return set.size === values.length && values.every((v) => set.has(v));
+}
 
 export default function InventoryPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
-  const [q, setQ] = useState("");
-  const [location, setLocation] = useState<string | null>(null);
   const [detail, setDetail] = useState<Item | null>(null);
 
-  const load = useCallback(async () => {
-    const [it, locs] = await Promise.all([
-      api.inventoryItems({ q: q || undefined, location: location ?? undefined }),
-      api.inventoryLocations(),
-    ]);
-    setItems(it);
-    setLocations(locs);
-  }, [q, location]);
+  // Server-side filters (synced to the URL). Defaults hide Lost/Discarded items from the browse view.
+  const [q, setQ] = useState("");
+  const [statusSel, setStatusSel] = useState<Set<ItemStatus>>(() => new Set(ACTIVE_ITEM_STATUSES));
+  const [conditionSel, setConditionSel] = useState<Set<Condition>>(() => new Set(CONDITIONS));
+  const [locationSel, setLocationSel] = useState<Set<string>>(() => new Set());
+
+  const debouncedQ = useDebouncedValue(q);
+
+  const loadLocations = useCallback(async () => {
+    setLocations(await api.inventoryLocations());
+  }, []);
+
+  const loadItems = useCallback(async () => {
+    if (statusSel.size === 0 || conditionSel.size === 0) {
+      setItems([]);
+      return;
+    }
+    setItems(
+      await api.inventoryItems({
+        q: debouncedQ || undefined,
+        status: [...statusSel],
+        condition: [...conditionSel],
+        location: locationSel.size ? [...locationSel] : undefined,
+      }),
+    );
+  }, [debouncedQ, statusSel, conditionSel, locationSel]);
+
+  const hydrated = useUrlFilters({
+    decode: (sp) => {
+      const qp = sp.get("q");
+      if (qp) setQ(qp);
+      const st = sp.getAll("status");
+      if (st.length) setStatusSel(new Set(st as ItemStatus[]));
+      const co = sp.getAll("condition");
+      if (co.length) setConditionSel(new Set(co as Condition[]));
+      const lo = sp.getAll("location");
+      if (lo.length) setLocationSel(new Set(lo));
+    },
+    params: {
+      q: q || undefined,
+      status: setsEqual(statusSel, ACTIVE_ITEM_STATUSES) ? undefined : [...statusSel],
+      condition: setsEqual(conditionSel, CONDITIONS) ? undefined : [...conditionSel],
+      location: [...locationSel],
+    },
+  });
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadLocations();
+  }, [loadLocations]);
+  useEffect(() => {
+    if (hydrated) loadItems();
+  }, [hydrated, loadItems]);
+
+  const dirty =
+    q.trim() !== "" ||
+    !setsEqual(statusSel, ACTIVE_ITEM_STATUSES) ||
+    !setsEqual(conditionSel, CONDITIONS) ||
+    locationSel.size > 0;
+
+  function reset() {
+    setQ("");
+    setStatusSel(new Set(ACTIVE_ITEM_STATUSES));
+    setConditionSel(new Set(CONDITIONS));
+    setLocationSel(new Set());
+  }
+
+  const locationOptions = useMemo(() => [NO_LOCATION, ...locations], [locations]);
 
   // Group items by type; the per-type availability counts in the header replace the old
   // "By type" summary view.
@@ -56,34 +127,42 @@ export default function InventoryPage() {
 
   return (
     <AppShell>
-      <Flex mb="3" gap="3" align="center" wrap="wrap">
-        <TextField.Root
-          placeholder="Search items…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          style={{ minWidth: 220 }}
-        />
-        <Select.Root
-          value={location ?? "all"}
-          onValueChange={(v) => setLocation(v === "all" ? null : v)}
+      <Flex mb="3" justify="between" align="center" wrap="wrap">
+        <FilterBar
+          search={{ value: q, onChange: setQ, placeholder: "Search items…" }}
+          dirty={dirty}
+          onReset={reset}
+          shown={items.length}
+          noun="item"
         >
-          <Select.Trigger placeholder="Location" />
-          <Select.Content>
-            <Select.Item value="all">All locations</Select.Item>
-            {locations.map((l) => (
-              <Select.Item key={l} value={l}>
-                {l}
-              </Select.Item>
-            ))}
-          </Select.Content>
-        </Select.Root>
+          <MultiSelectFilter
+            label="Status"
+            options={ITEM_STATUSES}
+            selected={statusSel}
+            onChange={setStatusSel}
+          />
+          <MultiSelectFilter
+            label="Condition"
+            options={CONDITIONS}
+            selected={conditionSel}
+            onChange={setConditionSel}
+          />
+          <MultiSelectFilter
+            label="Location"
+            options={locationOptions}
+            selected={locationSel}
+            onChange={setLocationSel}
+            emptyMeansAll
+            renderOption={(loc) => (loc === NO_LOCATION ? "(No location)" : loc)}
+          />
+        </FilterBar>
       </Flex>
 
       <GroupedTable
         groups={groupNodes}
         rowKey={(i) => i.id}
         onRowClick={setDetail}
-        empty="No items found."
+        empty="No items match your filters."
         columns={[
           { header: "Name", cell: (i) => i.name },
           { header: "Location", cell: (i) => i.location ?? "—" },

@@ -5,7 +5,10 @@ import { Button, Flex, Select, Text, TextField } from "@radix-ui/themes";
 
 import { AppShell } from "@/components/AppShell";
 import { DataTable, type Column } from "@/components/DataTable";
+import { FilterBar } from "@/components/FilterBar";
 import { EventBadge, EVENT_TYPE_OPTIONS } from "@/components/HistoryList";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { api } from "@/lib/api";
 import type { ItemEvent, Page } from "@/lib/types";
 
@@ -25,9 +28,11 @@ export default function HistoryPage() {
     offset: 0,
   });
 
+  const debouncedQ = useDebouncedValue(q);
+
   const load = useCallback(async () => {
     const result = await api.adminEvents({
-      q: q || undefined,
+      q: debouncedQ || undefined,
       event_type: eventType === ALL ? undefined : eventType,
       date_from: dateFrom || undefined,
       // Make the end date inclusive of the whole day.
@@ -36,16 +41,44 @@ export default function HistoryPage() {
       offset,
     });
     setPage(result);
-  }, [q, eventType, dateFrom, dateTo, offset]);
+  }, [debouncedQ, eventType, dateFrom, dateTo, offset]);
+
+  const hydrated = useUrlFilters({
+    decode: (sp) => {
+      const qp = sp.get("q");
+      if (qp) setQ(qp);
+      const et = sp.get("event_type");
+      if (et) setEventType(et);
+      const df = sp.get("date_from");
+      if (df) setDateFrom(df);
+      const dt = sp.get("date_to");
+      if (dt) setDateTo(dt);
+    },
+    params: {
+      q: q || undefined,
+      event_type: eventType === ALL ? undefined : eventType,
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+    },
+  });
 
   // Reset to the first page whenever a filter changes.
   useEffect(() => {
     setOffset(0);
-  }, [q, eventType, dateFrom, dateTo]);
+  }, [debouncedQ, eventType, dateFrom, dateTo]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (hydrated) load();
+  }, [hydrated, load]);
+
+  const dirty = q !== "" || eventType !== ALL || dateFrom !== "" || dateTo !== "";
+
+  function reset() {
+    setQ("");
+    setEventType(ALL);
+    setDateFrom("");
+    setDateTo("");
+  }
 
   const columns: Column<ItemEvent>[] = [
     {
@@ -74,38 +107,42 @@ export default function HistoryPage() {
 
   return (
     <AppShell>
-      <Flex mb="3" gap="3" align="center" wrap="wrap">
-        <TextField.Root
-          placeholder="Search notes, items, users…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          style={{ minWidth: 240 }}
-        />
-        <Select.Root value={eventType} onValueChange={setEventType}>
-          <Select.Trigger placeholder="Action" />
-          <Select.Content>
-            <Select.Item value={ALL}>All actions</Select.Item>
-            {EVENT_TYPE_OPTIONS.map((o) => (
-              <Select.Item key={o.value} value={o.value}>
-                {o.label}
-              </Select.Item>
-            ))}
-          </Select.Content>
-        </Select.Root>
-        <Flex gap="1" align="center">
-          <Text size="1" color="gray">
-            From
-          </Text>
-          <TextField.Root
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-          />
-          <Text size="1" color="gray">
-            to
-          </Text>
-          <TextField.Root type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </Flex>
+      <Flex mb="3" justify="between" align="center" wrap="wrap">
+        <FilterBar
+          search={{ value: q, onChange: setQ, placeholder: "Search notes, items, users…" }}
+          dirty={dirty}
+          onReset={reset}
+        >
+          <Select.Root value={eventType} onValueChange={setEventType}>
+            <Select.Trigger placeholder="Action" />
+            <Select.Content>
+              <Select.Item value={ALL}>All actions</Select.Item>
+              {EVENT_TYPE_OPTIONS.map((o) => (
+                <Select.Item key={o.value} value={o.value}>
+                  {o.label}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+          <Flex gap="1" align="center">
+            <Text size="1" color="gray">
+              From
+            </Text>
+            <TextField.Root
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
+            <Text size="1" color="gray">
+              to
+            </Text>
+            <TextField.Root
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
+          </Flex>
+        </FilterBar>
       </Flex>
 
       <DataTable

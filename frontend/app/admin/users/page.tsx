@@ -17,13 +17,16 @@ import { EyeOpenIcon, IdCardIcon, Pencil1Icon, PlusIcon, TrashIcon } from "@radi
 import { AppShell } from "@/components/AppShell";
 import { ConfirmButton, ConfirmDialog, DialogFooter, DialogHeader } from "@/components/Dialogs";
 import { Field } from "@/components/Field";
+import { FilterBar } from "@/components/FilterBar";
 import { GroupedTable, type GroupNode } from "@/components/GroupedTable";
 import { HistoryList, StatusBadge } from "@/components/HistoryList";
 import { ImportExportButtons } from "@/components/ImportExportButtons";
 import { ImportResultDialog } from "@/components/ImportResultDialog";
 import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { SelectionBar } from "@/components/SelectionBar";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSelection } from "@/hooks/useSelection";
+import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { api, ApiError, downloadBlob } from "@/lib/api";
 import { USER_STATUSES } from "@/lib/types";
 import type {
@@ -41,7 +44,15 @@ const UNCHANGED = "__unchanged__";
 const NONE = "__none__";
 const NEW_GROUP = "__new_group__";
 
+// The status filter's default: Active users only.
+const DEFAULT_STATUS: UserStatus[] = ["Active"];
+
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+
+/** True when a Set holds exactly the given values (order-independent) — for default detection. */
+function setsEqual<T>(set: Set<T>, values: readonly T[]): boolean {
+  return set.size === values.length && values.every((v) => set.has(v));
+}
 
 type DeleteTarget = { kind: "user" | "group"; id: string; name: string };
 
@@ -50,7 +61,7 @@ export default function UsersPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [users, setUsers] = useState<UserRead[]>([]);
   const [q, setQ] = useState("");
-  const [statusSel, setStatusSel] = useState<Set<UserStatus>>(new Set(["Active"]));
+  const [statusSel, setStatusSel] = useState<Set<UserStatus>>(() => new Set(DEFAULT_STATUS));
 
   const { selected, toggleOne, toggleMany, clear: clearSelection } = useSelection();
   const [editUser, setEditUser] = useState<Partial<UserRead> | null>(null);
@@ -66,16 +77,45 @@ export default function UsersPage() {
     setTree(await api.groupTree());
     setGroups(await api.groups());
   }, []);
+
+  const debouncedQ = useDebouncedValue(q);
+
   const loadUsers = useCallback(async () => {
-    setUsers(await api.users());
-  }, []);
+    // An empty status selection means "show nobody"; short-circuit (an omitted param = all server-side).
+    if (statusSel.size === 0) {
+      setUsers([]);
+      return;
+    }
+    setUsers(await api.users({ q: debouncedQ || undefined, status: [...statusSel] }));
+  }, [debouncedQ, statusSel]);
+
+  // Seed filters from the URL on mount, then keep the URL in sync; `hydrated` gates the first fetch.
+  const hydrated = useUrlFilters({
+    decode: (sp) => {
+      const qp = sp.get("q");
+      if (qp) setQ(qp);
+      const st = sp.getAll("status");
+      if (st.length) setStatusSel(new Set(st as UserStatus[]));
+    },
+    params: {
+      q: q || undefined,
+      status: setsEqual(statusSel, DEFAULT_STATUS) ? undefined : [...statusSel],
+    },
+  });
 
   useEffect(() => {
     loadGroups();
   }, [loadGroups]);
   useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+    if (hydrated) loadUsers();
+  }, [hydrated, loadUsers]);
+
+  const dirty = q.trim() !== "" || !setsEqual(statusSel, DEFAULT_STATUS);
+
+  function reset() {
+    setQ("");
+    setStatusSel(new Set(DEFAULT_STATUS));
+  }
 
   const openDetail = async (u: UserRead) => setDetailUser(await api.user(u.id));
 
@@ -87,23 +127,17 @@ export default function UsersPage() {
     }
   }
 
-  // Bucket the (filtered) users by their group, then nest into the group tree.
+  // The server already applied the search/status filters; bucket the users by their group.
   const usersByGroup = useMemo(() => {
-    const needle = q.trim().toLowerCase();
     const m = new Map<string, UserRead[]>();
     for (const u of users) {
-      if (!statusSel.has(u.status)) continue;
-      if (needle) {
-        const hay = `${u.name} ${u.group_name ?? ""} ${u.barcode}`;
-        if (!hay.toLowerCase().includes(needle)) continue;
-      }
       const key = u.group_id ?? UNGROUPED;
       const list = m.get(key);
       if (list) list.push(u);
       else m.set(key, [u]);
     }
     return m;
-  }, [users, q, statusSel]);
+  }, [users]);
 
   const groupNodes = useMemo<GroupNode<UserRead>[]>(() => {
     const rollup = (node: GroupTree): number =>
@@ -179,20 +213,20 @@ export default function UsersPage() {
   return (
     <AppShell>
       <Flex mb="3" gap="3" justify="between" align="center" wrap="wrap">
-        <Flex gap="2" align="center" wrap="wrap">
-          <TextField.Root
-            placeholder="Search name, group, barcode…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            style={{ minWidth: 240 }}
-          />
+        <FilterBar
+          search={{ value: q, onChange: setQ, placeholder: "Search name, group, barcode…" }}
+          dirty={dirty}
+          onReset={reset}
+          shown={users.length}
+          noun="user"
+        >
           <MultiSelectFilter
             label="Status"
             options={USER_STATUSES}
             selected={statusSel}
             onChange={setStatusSel}
           />
-        </Flex>
+        </FilterBar>
         <Flex gap="2" wrap="wrap">
           <ImportExportButtons
             exportName="stocky-users.xlsx"
