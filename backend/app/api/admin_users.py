@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import ensure_unique_barcode, require_admin
 from app.api.responses import pdf_response, xlsx_response
 from app.core.db import get_session
-from app.models import Event, Group, User
+from app.models import Event, Group, User, UserStatus
 from app.schemas.group import GroupCreate, GroupRead, GroupTree, GroupUpdate
 from app.schemas.imports import ImportResult
 from app.schemas.inventory import EventRead, IdList
@@ -19,7 +20,7 @@ from app.schemas.user import UserBatchUpdate, UserCreate, UserDetail, UserRead, 
 from app.services import barcode as barcode_svc
 from app.services import cards as cards_svc
 from app.services import spreadsheet as spreadsheet_svc
-from app.services.queries import group_names
+from app.services.queries import group_names, user_filter_query
 from app.services.serialize import loan_count, serialize_event, serialize_user_detail
 
 router = APIRouter(prefix="/api/admin", tags=["admin:users"], dependencies=[Depends(require_admin)])
@@ -116,14 +117,12 @@ async def _unique_user_barcode(session: AsyncSession, proposed: str | None) -> s
 async def list_users(
     group_id: uuid.UUID | None = None,
     q: str | None = None,
+    status: Annotated[list[UserStatus] | None, Query()] = None,
     session: AsyncSession = Depends(get_session),
 ) -> list[UserRead]:
-    stmt = select(User)
-    if group_id is not None:
-        stmt = stmt.where(User.group_id == group_id)
-    if q:
-        stmt = stmt.where(User.name.ilike(f"%{q}%"))
-    users = list((await session.execute(stmt.order_by(User.name))).scalars().all())
+    users = list(
+        (await session.execute(user_filter_query(q, status, group_id))).scalars().all()
+    )
 
     groups = await group_names(session)
     out: list[UserRead] = []

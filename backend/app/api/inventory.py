@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.models import Item, ItemType
+from app.models import Condition, Item, ItemType
 from app.models.enums import ItemStatus
 from app.schemas.inventory import EventRead, InventorySummaryRow, ItemRead
-from app.services.queries import distinct_locations_query, item_filter_query
-from app.services.serialize import serialize_event, serialize_item, serialize_items_bulk
+from app.services.queries import distinct_locations_query, item_read_query
+from app.services.serialize import (
+    serialize_event,
+    serialize_item,
+    serialize_items_bulk,
+    serialize_read_rows,
+)
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 
@@ -21,14 +27,17 @@ router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 @router.get("/items", response_model=list[ItemRead])
 async def browse_items(
     q: str | None = None,
-    type_id: uuid.UUID | None = None,
-    location: str | None = None,
+    type_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    location: Annotated[list[str] | None, Query()] = None,
+    condition: Annotated[list[Condition] | None, Query()] = None,
+    status: Annotated[list[ItemStatus] | None, Query()] = None,
     session: AsyncSession = Depends(get_session),
 ) -> list[ItemRead]:
-    """Search/filter items. Read-only — there are no write routes in this module."""
-    stmt = item_filter_query(q, type_id, location)
-    items = list((await session.execute(stmt)).scalars().all())
-    return await serialize_items_bulk(session, items)
+    """Search/filter items (incl. by derived status). Read-only — no write routes in this module."""
+    rows = (
+        await session.execute(item_read_query(q, type_id, location, condition, status))
+    ).all()
+    return await serialize_read_rows(session, rows)
 
 
 @router.get("/items/{item_id}", response_model=ItemRead)

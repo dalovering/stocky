@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import delete, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import ensure_unique_barcode, require_admin
 from app.api.responses import pdf_response, xlsx_response
 from app.core.db import get_session
-from app.models import Event, EventType, Item, ItemStatus, ItemType
+from app.models import Condition, Event, EventType, Item, ItemStatus, ItemType
 from app.schemas.imports import ImportResult
 from app.schemas.inventory import (
     EventRead,
@@ -30,8 +31,13 @@ from app.services import barcode as barcode_svc
 from app.services import cards as cards_svc
 from app.services import events as event_svc
 from app.services import spreadsheet as spreadsheet_svc
-from app.services.queries import distinct_locations_query, item_filter_query
-from app.services.serialize import serialize_event, serialize_item, serialize_items_bulk
+from app.services.queries import distinct_locations_query, item_read_query
+from app.services.serialize import (
+    serialize_event,
+    serialize_item,
+    serialize_items_bulk,
+    serialize_read_rows,
+)
 
 router = APIRouter(
     prefix="/api/admin", tags=["admin:inventory"], dependencies=[Depends(require_admin)]
@@ -135,13 +141,29 @@ async def _unique_item_barcode(session: AsyncSession, proposed: str | None) -> s
 @router.get("/items", response_model=list[ItemRead])
 async def list_items(
     q: str | None = None,
-    type_id: uuid.UUID | None = None,
-    location: str | None = None,
+    type_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    location: Annotated[list[str] | None, Query()] = None,
+    condition: Annotated[list[Condition] | None, Query()] = None,
+    status: Annotated[list[ItemStatus] | None, Query()] = None,
+    needs_review: bool | None = None,
     session: AsyncSession = Depends(get_session),
 ) -> list[ItemRead]:
-    stmt = item_filter_query(q, type_id, location)
-    items = list((await session.execute(stmt)).scalars().all())
-    return await serialize_items_bulk(session, items)
+    """List items, filtered server-side — including by the *derived* availability status."""
+    rows = (
+        await session.execute(
+            item_read_query(q, type_id, location, condition, status, needs_review)
+        )
+    ).all()
+    return await serialize_read_rows(session, rows)
+
+
+@router.get("/items/needs-review-count")
+async def needs_review_count(session: AsyncSession = Depends(get_session)) -> dict[str, int]:
+    """Global count of items flagged for review (drives the admin banner, filter-independent)."""
+    count = await session.scalar(
+        select(func.count()).select_from(Item).where(Item.needs_review.is_(True))
+    )
+    return {"count": int(count or 0)}
 
 
 @router.post("/items", response_model=ItemRead, status_code=status.HTTP_201_CREATED)
