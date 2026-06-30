@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy import delete, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import ensure_unique_barcode, require_admin
 from app.core.db import get_session
 from app.models import Event, EventType, Item, ItemStatus, ItemType
+from app.schemas.imports import ImportResult
 from app.schemas.inventory import (
     EventRead,
     IdList,
@@ -26,8 +27,11 @@ from app.schemas.inventory import (
 )
 from app.services import barcode as barcode_svc
 from app.services import events as event_svc
+from app.services import spreadsheet as spreadsheet_svc
 from app.services.queries import distinct_locations_query, item_filter_query
 from app.services.serialize import serialize_event, serialize_item, serialize_items_bulk
+
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 router = APIRouter(
     prefix="/api/admin", tags=["admin:inventory"], dependencies=[Depends(require_admin)]
@@ -223,6 +227,23 @@ async def batch_delete_items(body: IdList, session: AsyncSession = Depends(get_s
         await session.execute(delete(Event).where(Event.item_id.in_(body.ids)))
         await session.execute(delete(Item).where(Item.id.in_(body.ids)))
         await session.commit()
+
+
+@router.get("/items.xlsx")
+async def export_items(session: AsyncSession = Depends(get_session)) -> Response:
+    content = await spreadsheet_svc.items_workbook(session)
+    return Response(
+        content=content,
+        media_type=XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": 'attachment; filename="stocky-items.xlsx"'},
+    )
+
+
+@router.post("/items/import", response_model=ImportResult)
+async def import_items(
+    file: UploadFile = File(...), session: AsyncSession = Depends(get_session)
+) -> ImportResult:
+    return await spreadsheet_svc.import_items(session, await file.read())
 
 
 @router.post("/items/{item_id}/status", response_model=ItemRead)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,12 +12,16 @@ from app.api.deps import ensure_unique_barcode, require_admin
 from app.core.db import get_session
 from app.models import Event, Group, User
 from app.schemas.group import GroupCreate, GroupRead, GroupTree, GroupUpdate
+from app.schemas.imports import ImportResult
 from app.schemas.inventory import EventRead, IdList
 from app.schemas.user import UserBatchUpdate, UserCreate, UserDetail, UserRead, UserUpdate
 from app.services import barcode as barcode_svc
+from app.services import spreadsheet as spreadsheet_svc
 from app.services.serialize import loan_count, serialize_event, serialize_user_detail
 
 router = APIRouter(prefix="/api/admin", tags=["admin:users"], dependencies=[Depends(require_admin)])
+
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 # ---------------------------------------------------------------------------
@@ -148,8 +152,26 @@ async def create_user(body: UserCreate, session: AsyncSession = Depends(get_sess
 
 
 # ---------------------------------------------------------------------------
-# Batch operations (defined before `/users/{user_id}` so "batch" isn't parsed as an id).
+# Spreadsheet import/export and batch ops — all before `/users/{user_id}` so their literal
+# path segments aren't parsed as a user id.
 # ---------------------------------------------------------------------------
+@router.get("/users.xlsx")
+async def export_users(session: AsyncSession = Depends(get_session)) -> Response:
+    content = await spreadsheet_svc.users_workbook(session)
+    return Response(
+        content=content,
+        media_type=XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": 'attachment; filename="stocky-users.xlsx"'},
+    )
+
+
+@router.post("/users/import", response_model=ImportResult)
+async def import_users(
+    file: UploadFile = File(...), session: AsyncSession = Depends(get_session)
+) -> ImportResult:
+    return await spreadsheet_svc.import_users(session, await file.read())
+
+
 @router.patch("/users/batch", response_model=list[UserRead])
 async def batch_update_users(
     body: UserBatchUpdate, session: AsyncSession = Depends(get_session)
