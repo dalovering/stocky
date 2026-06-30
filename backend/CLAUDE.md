@@ -42,7 +42,11 @@ alembic/               # migrations (env.py wires the async engine + SQLModel me
   the latest of `damage_report`/`loss_report`/`discard`/`mark_unavailable`/`restore`. When you add an
   action that affects availability, append an `Event` and update `services/status.py` — don't add a
   status column. (Stored fields like `Item.condition`, `Item.needs_review`, and `User.status` are
-  physical/workflow state, not loan availability, so they live on the row.)
+  physical/workflow state, not loan availability, so they live on the row.) **Filtering by status is
+  server-side:** `services/queries.py::item_read_query` is the *SQL twin* of `status.py` — it derives
+  status in Postgres (DISTINCT ON over `events` + a CASE mirroring `combine_status`) so the list
+  endpoints can filter/sort by the derived status. Keep the two in sync; `test_item_read_query.py`
+  asserts they agree across event histories. If you change the status rules, change both.
 - **Enums as VARCHAR.** `Condition`/`EventType`/`ItemStatus`/`UserStatus` are stored as plain
   `VARCHAR` (`sa_type=String`), not native PG enums, so values change with no DB-type migration;
   validation happens via the `StrEnum` in the schemas.

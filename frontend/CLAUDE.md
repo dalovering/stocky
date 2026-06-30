@@ -53,6 +53,18 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
     and `components/MultiSelectFilter.tsx` (the multi-value checkbox dropdown used for *every* enum
     filter — don't build single-value enum `Select` filters). Pass `selectable` +
     `selectedIds`/`onToggle`/`onToggleMany` to `GroupedTable` to enable checkboxes.
+  - **Filtering (server-side) — use the shared filter bar, don't hand-roll.** Filtering is done by
+    the backend via parameterized list endpoints (multi-valued `status`/`condition`/`type_id`/
+    `location` etc.) — including the *derived* item status — not in the browser. The standard UI is
+    `components/FilterBar.tsx` (lays out a `SearchField` + the page's filter controls + a Reset
+    button that appears only when filters deviate from defaults + a result count) wrapping
+    `MultiSelectFilter`s; `components/SearchField.tsx` is the search input (leading magnifier +
+    clear ×). `hooks/useDebouncedValue.ts` debounces the (now server-hitting) search; pages own the
+    filter state and pass it to `api.*` calls. `hooks/useUrlFilters.ts` mirrors filter state to the
+    URL (via `history.replaceState`, so reload/share keep the filters) and returns `hydrated` — gate
+    the first fetch on it. For `MultiSelectFilter`, Type/Location use `emptyMeansAll` (empty Set =
+    show all, since their option set is dynamic) and `renderOption` for labels (e.g. the
+    `__none__` location sentinel → "(No location)").
 - **Admin tabs.** `/admin/{users,inventory}` are the CRUD + batch tables; `/admin/history` is the
   paginated event log; `/admin/settings` toggles app config; `/admin/export` downloads the multi-up
   card sheet. Add a tab via `ADMIN_NAV` in `AppShell.tsx`.
