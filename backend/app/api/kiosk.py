@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.models import Event, Item, User
+from app.models import Event, Item, User, UserStatus
 from app.schemas.inventory import EventRead, ItemRead
 from app.schemas.kiosk import (
     ItemActionRequest,
@@ -20,6 +20,7 @@ from app.schemas.kiosk import (
 )
 from app.schemas.user import UserDetail
 from app.services import events as event_svc
+from app.services import settings as settings_svc
 from app.services.serialize import serialize_event, serialize_item, serialize_user_detail
 from app.services.status import latest_checkout_holder
 
@@ -28,6 +29,13 @@ router = APIRouter(prefix="/api/kiosk", tags=["kiosk"])
 
 async def _user_by_barcode(session: AsyncSession, code: str) -> User | None:
     return (await session.execute(select(User).where(User.barcode == code))).scalar_one_or_none()
+
+
+async def _is_blocked(session: AsyncSession, user: User) -> bool:
+    """Whether this user is barred from the kiosk (inactive + the setting is enabled)."""
+    if user.status != UserStatus.INACTIVE:
+        return False
+    return await settings_svc.kiosk_blocks_inactive(session)
 
 
 async def _item_by_barcode(session: AsyncSession, code: str) -> Item | None:
@@ -49,6 +57,12 @@ async def scan(body: ScanRequest, session: AsyncSession = Depends(get_session)) 
 
     user = await _user_by_barcode(session, code)
     if user is not None:
+        if await _is_blocked(session, user):
+            return ScanResponse(
+                kind=ScanKind.USER,
+                action=ScanAction.UNKNOWN,
+                message=f"{user.name} is inactive and can't use the kiosk.",
+            )
         return ScanResponse(
             kind=ScanKind.USER,
             action=ScanAction.LOGIN,
@@ -119,8 +133,14 @@ async def checkout(
     body: ItemActionRequest, session: AsyncSession = Depends(get_session)
 ) -> ItemRead:
     item = await _load_item(session, body.item_id)
+    user_id = _require_user_id(body)
+    user = await session.get(User, user_id)
+    if user is not None and await _is_blocked(session, user):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, f"{user.name} is inactive and can't check out items."
+        )
     try:
-        await event_svc.check_out(session, item, _require_user_id(body))
+        await event_svc.check_out(session, item, user_id)
     except event_svc.LoanError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     await session.commit()

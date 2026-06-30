@@ -5,7 +5,16 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin_history, admin_inventory, admin_users, auth, inventory, kiosk, labels
+from app.api import (
+    admin_history,
+    admin_inventory,
+    admin_settings,
+    admin_users,
+    auth,
+    inventory,
+    kiosk,
+    labels,
+)
 from app.core.config import settings
 
 app = FastAPI(
@@ -26,6 +35,7 @@ app.include_router(auth.router)
 app.include_router(admin_users.router)
 app.include_router(admin_inventory.router)
 app.include_router(admin_history.router)
+app.include_router(admin_settings.router)
 app.include_router(kiosk.router)
 app.include_router(inventory.router)
 app.include_router(labels.router)
