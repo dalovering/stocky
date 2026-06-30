@@ -58,12 +58,14 @@ conventions in a subtree, update that subtree's CLAUDE.md in the same commit.
 
 ```bash
 make init-env               # generate .env with openssl-random secrets (prints admin password)
-make run                    # docker-compose up: postgres 18 + backend + frontend
+make run                    # docker-compose: build + start postgres 18 + backend + frontend
+make start                  # docker-compose start WITHOUT rebuilding (fast restart after `make build`)
 make migrate                # apply DB migrations
 make seed                   # load demo data so the kiosk works immediately
 make down                   # stop everything
 
-make dev                    # run backend (uv) + frontend (npm) locally, no docker
+make dev                    # run backend (uv) + frontend (npm dev server) locally, no docker
+make prod-frontend          # build + serve frontend in production mode (no per-page compile; for the Pi)
 make test                   # backend + frontend tests
 make lint                   # ruff + eslint
 make format                 # ruff format + prettier
