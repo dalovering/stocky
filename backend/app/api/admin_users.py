@@ -5,15 +5,15 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import ensure_unique_barcode, require_admin
 from app.core.db import get_session
 from app.models import Event, Group, User
 from app.schemas.group import GroupCreate, GroupRead, GroupTree, GroupUpdate
-from app.schemas.inventory import EventRead
-from app.schemas.user import UserCreate, UserDetail, UserRead, UserUpdate
+from app.schemas.inventory import EventRead, IdList
+from app.schemas.user import UserBatchUpdate, UserCreate, UserDetail, UserRead, UserUpdate
 from app.services import barcode as barcode_svc
 from app.services.serialize import loan_count, serialize_event, serialize_user_detail
 
@@ -129,6 +129,7 @@ async def list_users(
                 name=user.name,
                 group_id=user.group_id,
                 group_name=groups.get(user.group_id) if user.group_id else None,
+                status=user.status,
                 barcode=user.barcode,
                 loan_count=await loan_count(session, user.id),
             )
@@ -139,11 +140,56 @@ async def list_users(
 @router.post("/users", response_model=UserDetail, status_code=status.HTTP_201_CREATED)
 async def create_user(body: UserCreate, session: AsyncSession = Depends(get_session)) -> UserDetail:
     barcode = await _unique_user_barcode(session, body.barcode)
-    user = User(name=body.name, group_id=body.group_id, barcode=barcode)
+    user = User(name=body.name, group_id=body.group_id, status=body.status, barcode=barcode)
     session.add(user)
     await session.commit()
     await session.refresh(user)
     return await serialize_user_detail(session, user)
+
+
+# ---------------------------------------------------------------------------
+# Batch operations (defined before `/users/{user_id}` so "batch" isn't parsed as an id).
+# ---------------------------------------------------------------------------
+@router.patch("/users/batch", response_model=list[UserRead])
+async def batch_update_users(
+    body: UserBatchUpdate, session: AsyncSession = Depends(get_session)
+) -> list[UserRead]:
+    data = body.patch.model_dump(exclude_unset=True)
+    users = (
+        list((await session.execute(select(User).where(User.id.in_(body.ids)))).scalars().all())
+        if body.ids
+        else []
+    )
+    for user in users:
+        for field, value in data.items():
+            setattr(user, field, value)
+        session.add(user)
+    await session.commit()
+
+    groups = {g.id: g.name for g in (await session.execute(select(Group))).scalars().all()}
+    out: list[UserRead] = []
+    for user in users:
+        out.append(
+            UserRead(
+                id=user.id,
+                name=user.name,
+                group_id=user.group_id,
+                group_name=groups.get(user.group_id) if user.group_id else None,
+                status=user.status,
+                barcode=user.barcode,
+                loan_count=await loan_count(session, user.id),
+            )
+        )
+    return out
+
+
+@router.post("/users/batch-delete", status_code=status.HTTP_204_NO_CONTENT)
+async def batch_delete_users(body: IdList, session: AsyncSession = Depends(get_session)) -> None:
+    if body.ids:
+        # Events keep a user_id FK; null it out so deleting the user doesn't orphan history.
+        await session.execute(update(Event).where(Event.user_id.in_(body.ids)).values(user_id=None))
+        await session.execute(delete(User).where(User.id.in_(body.ids)))
+        await session.commit()
 
 
 @router.get("/users/{user_id}", response_model=UserDetail)

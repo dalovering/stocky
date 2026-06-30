@@ -106,6 +106,35 @@ class ItemRead(BaseModel):
     checked_out_at: datetime | None = None
 
 
+class ItemStatusChange(BaseModel):
+    """Admin request to set an item's availability (emits the matching event)."""
+
+    status: ItemStatus
+    note: str | None = None
+
+
+class ItemBatchStatusChange(ItemStatusChange):
+    ids: list[uuid.UUID]
+
+
+class ItemBatchPatch(BaseModel):
+    """Fields that can be applied to many items at once (omit a field to leave it unchanged)."""
+
+    item_type_id: uuid.UUID | None = None
+    location: str | None = None
+    condition: Condition | None = None
+    needs_review: bool | None = None
+
+
+class ItemBatchUpdate(BaseModel):
+    ids: list[uuid.UUID]
+    patch: ItemBatchPatch
+
+
+class IdList(BaseModel):
+    ids: list[uuid.UUID]
+
+
 class EventRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

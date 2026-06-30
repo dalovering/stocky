@@ -166,6 +166,7 @@ async def serialize_user_detail(session: AsyncSession, user: User) -> UserDetail
         name=user.name,
         group_id=user.group_id,
         group_name=group_name,
+        status=user.status,
         barcode=user.barcode,
         loan_count=len(loans),
         current_loans=loans,
