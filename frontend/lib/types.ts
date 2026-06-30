@@ -19,6 +19,19 @@ export type EventType =
 
 export const CONDITIONS: Condition[] = ["On order", "New", "Good", "Fair", "Worn", "Damaged"];
 
+export const ITEM_STATUSES: ItemStatus[] = [
+  "Checked out",
+  "Available",
+  "Unavailable",
+  "Lost",
+  "Discarded",
+];
+
+// The statuses shown by default on the admin items table — the "live" ones (hides Lost/Discarded).
+export const ACTIVE_ITEM_STATUSES: ItemStatus[] = ["Checked out", "Available", "Unavailable"];
+
+export const USER_STATUSES: UserStatus[] = ["Active", "Inactive"];
+
 // Statuses an admin can set directly (Checked out is loan-driven, not settable).
 export const SETTABLE_STATUSES: ItemStatus[] = ["Available", "Unavailable", "Lost", "Discarded"];
 

@@ -31,12 +31,15 @@ import { GroupedTable, type GroupNode } from "@/components/GroupedTable";
 import { HistoryList, ReviewBadge, StatusBadge } from "@/components/HistoryList";
 import { ImportExportButtons } from "@/components/ImportExportButtons";
 import { ImportResultDialog } from "@/components/ImportResultDialog";
+import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { PassiveSelect } from "@/components/PassiveSelect";
 import { SelectionBar } from "@/components/SelectionBar";
 import { useSelection } from "@/hooks/useSelection";
 import { api, ApiError, downloadBlob } from "@/lib/api";
 import {
+  ACTIVE_ITEM_STATUSES,
   CONDITIONS,
+  ITEM_STATUSES,
   SETTABLE_STATUSES,
   type Condition,
   type ImportResult,
@@ -61,9 +64,6 @@ function generateItemBarcode(): string {
 
 type DeleteTarget = { kind: "item" | "type"; id: string; name: string };
 
-// "active" hides the dead states (Lost/Discarded); "all" shows everything.
-type StatusFilter = "active" | "all" | ItemStatus;
-
 type ItemPatch = {
   item_type_id?: string;
   location?: string | null;
@@ -77,8 +77,8 @@ export default function InventoryAdminPage() {
   const [locations, setLocations] = useState<string[]>([]);
   const [manufacturers, setManufacturers] = useState<string[]>([]);
   const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
-  const [conditionFilter, setConditionFilter] = useState<Condition | "all">("all");
+  const [statusSel, setStatusSel] = useState<Set<ItemStatus>>(new Set(ACTIVE_ITEM_STATUSES));
+  const [conditionSel, setConditionSel] = useState<Set<Condition>>(new Set(CONDITIONS));
   const [reviewOnly, setReviewOnly] = useState(false);
 
   const { selected, toggleOne, toggleMany, clear: clearSelection } = useSelection();
@@ -125,12 +125,8 @@ export default function InventoryAdminPage() {
     const needle = q.trim().toLowerCase();
     const visible = items.filter((i) => {
       if (reviewOnly && !i.needs_review) return false;
-      if (statusFilter === "active") {
-        if (i.status === "Lost" || i.status === "Discarded") return false;
-      } else if (statusFilter !== "all" && i.status !== statusFilter) {
-        return false;
-      }
-      if (conditionFilter !== "all" && i.condition !== conditionFilter) return false;
+      if (!statusSel.has(i.status)) return false;
+      if (!conditionSel.has(i.condition)) return false;
       if (needle) {
         const hay = `${i.name} ${i.item_type_name ?? ""} ${i.location ?? ""} ${i.barcode}`;
         if (!hay.toLowerCase().includes(needle)) return false;
@@ -173,7 +169,7 @@ export default function InventoryAdminPage() {
         rows,
       };
     });
-  }, [types, items, q, statusFilter, conditionFilter, reviewOnly]);
+  }, [types, items, q, statusSel, conditionSel, reviewOnly]);
 
   async function confirmDelete() {
     if (!del) return;
@@ -211,37 +207,18 @@ export default function InventoryAdminPage() {
             onChange={(e) => setQ(e.target.value)}
             style={{ minWidth: 240 }}
           />
-          <Select.Root
-            value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as StatusFilter)}
-          >
-            <Select.Trigger />
-            <Select.Content>
-              <Select.Item value="active">Active</Select.Item>
-              <Select.Item value="all">All statuses</Select.Item>
-              {(
-                ["Available", "Checked out", "Unavailable", "Lost", "Discarded"] as ItemStatus[]
-              ).map((s) => (
-                <Select.Item key={s} value={s}>
-                  {s}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
-          <Select.Root
-            value={conditionFilter}
-            onValueChange={(v) => setConditionFilter(v as Condition | "all")}
-          >
-            <Select.Trigger />
-            <Select.Content>
-              <Select.Item value="all">Any condition</Select.Item>
-              {CONDITIONS.map((c) => (
-                <Select.Item key={c} value={c}>
-                  {c}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
+          <MultiSelectFilter
+            label="Status"
+            options={ITEM_STATUSES}
+            selected={statusSel}
+            onChange={setStatusSel}
+          />
+          <MultiSelectFilter
+            label="Condition"
+            options={CONDITIONS}
+            selected={conditionSel}
+            onChange={setConditionSel}
+          />
         </Flex>
         <Flex gap="2" wrap="wrap">
           <ImportExportButtons

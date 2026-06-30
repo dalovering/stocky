@@ -21,9 +21,11 @@ import { GroupedTable, type GroupNode } from "@/components/GroupedTable";
 import { HistoryList, StatusBadge } from "@/components/HistoryList";
 import { ImportExportButtons } from "@/components/ImportExportButtons";
 import { ImportResultDialog } from "@/components/ImportResultDialog";
+import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { SelectionBar } from "@/components/SelectionBar";
 import { useSelection } from "@/hooks/useSelection";
 import { api, ApiError, downloadBlob } from "@/lib/api";
+import { USER_STATUSES } from "@/lib/types";
 import type {
   Group,
   GroupTree,
@@ -42,14 +44,13 @@ const NEW_GROUP = "__new_group__";
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
 
 type DeleteTarget = { kind: "user" | "group"; id: string; name: string };
-type StatusFilter = "active" | "inactive" | "all";
 
 export default function UsersPage() {
   const [tree, setTree] = useState<GroupTree[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [users, setUsers] = useState<UserRead[]>([]);
   const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
+  const [statusSel, setStatusSel] = useState<Set<UserStatus>>(new Set(["Active"]));
 
   const { selected, toggleOne, toggleMany, clear: clearSelection } = useSelection();
   const [editUser, setEditUser] = useState<Partial<UserRead> | null>(null);
@@ -91,8 +92,7 @@ export default function UsersPage() {
     const needle = q.trim().toLowerCase();
     const m = new Map<string, UserRead[]>();
     for (const u of users) {
-      if (statusFilter === "active" && u.status !== "Active") continue;
-      if (statusFilter === "inactive" && u.status !== "Inactive") continue;
+      if (!statusSel.has(u.status)) continue;
       if (needle) {
         const hay = `${u.name} ${u.group_name ?? ""} ${u.barcode}`;
         if (!hay.toLowerCase().includes(needle)) continue;
@@ -103,7 +103,7 @@ export default function UsersPage() {
       else m.set(key, [u]);
     }
     return m;
-  }, [users, q, statusFilter]);
+  }, [users, q, statusSel]);
 
   const groupNodes = useMemo<GroupNode<UserRead>[]>(() => {
     const rollup = (node: GroupTree): number =>
@@ -186,17 +186,12 @@ export default function UsersPage() {
             onChange={(e) => setQ(e.target.value)}
             style={{ minWidth: 240 }}
           />
-          <Select.Root
-            value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as StatusFilter)}
-          >
-            <Select.Trigger />
-            <Select.Content>
-              <Select.Item value="active">Active</Select.Item>
-              <Select.Item value="inactive">Inactive</Select.Item>
-              <Select.Item value="all">All</Select.Item>
-            </Select.Content>
-          </Select.Root>
+          <MultiSelectFilter
+            label="Status"
+            options={USER_STATUSES}
+            selected={statusSel}
+            onChange={setStatusSel}
+          />
         </Flex>
         <Flex gap="2" wrap="wrap">
           <ImportExportButtons
