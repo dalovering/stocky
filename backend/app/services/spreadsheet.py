@@ -125,8 +125,7 @@ async def users_workbook(session: AsyncSession) -> bytes:
     groups = {g.id: g.name for g in (await session.execute(select(Group))).scalars()}
     users = (await session.execute(select(User).order_by(User.name))).scalars()
     rows = [
-        ["", str(u.id), u.barcode, u.name, groups.get(u.group_id, ""), str(u.status)]
-        for u in users
+        ["", str(u.id), u.barcode, u.name, groups.get(u.group_id, ""), str(u.status)] for u in users
     ]
     return _workbook_bytes(USER_HEADERS, rows)
 

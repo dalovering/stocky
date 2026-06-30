@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Item tag template, 1.46in x 1.02in (105.12pt x 73.44pt). Placeholders in {{...}} are filled
+     by services/cards.py; the rect#barcode-slot marks where the Code128 barcode is drawn. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="105.12" height="73.44" viewBox="0 0 105.12 73.44">
+  <rect x="1" y="1" width="103.12" height="71.44" rx="4" fill="#ffffff" stroke="#cccccc" stroke-width="1"/>
+  <text x="52.56" y="14" text-anchor="middle" font-family="Helvetica" font-weight="bold" font-size="9" fill="#111111">{{title}}</text>
+  <text x="52.56" y="24" text-anchor="middle" font-family="Helvetica" font-size="6.5" fill="#555555">{{subtitle}}</text>
+  <text x="52.56" y="32.5" text-anchor="middle" font-family="Helvetica" font-size="5.5" fill="#888888">{{extra}}</text>
+  <rect id="barcode-slot" x="11" y="37" width="83" height="22" fill="none" stroke="none"/>
+  <text x="52.56" y="69" text-anchor="middle" font-family="Helvetica" font-size="6" fill="#555555">{{barcode}}</text>
+</svg>

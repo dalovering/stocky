@@ -16,12 +16,31 @@ from app.schemas.imports import ImportResult
 from app.schemas.inventory import EventRead, IdList
 from app.schemas.user import UserBatchUpdate, UserCreate, UserDetail, UserRead, UserUpdate
 from app.services import barcode as barcode_svc
+from app.services import cards as cards_svc
 from app.services import spreadsheet as spreadsheet_svc
 from app.services.serialize import loan_count, serialize_event, serialize_user_detail
 
 router = APIRouter(prefix="/api/admin", tags=["admin:users"], dependencies=[Depends(require_admin)])
 
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _pdf_response(content: bytes, filename: str) -> Response:
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+async def _user_cards(session: AsyncSession, users: list[User]) -> list[cards_svc.CardData]:
+    groups = {g.id: g.name for g in (await session.execute(select(Group))).scalars()}
+    return [
+        cards_svc.CardData(
+            title=u.name, subtitle=groups.get(u.group_id), extra=None, barcode=u.barcode
+        )
+        for u in users
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -172,6 +191,21 @@ async def import_users(
     return await spreadsheet_svc.import_users(session, await file.read())
 
 
+@router.post("/users/id-cards.pdf")
+async def users_id_cards_pdf(
+    body: IdList, session: AsyncSession = Depends(get_session)
+) -> Response:
+    """ID cards for a selection of users, one per page."""
+    users = (
+        list((await session.execute(select(User).where(User.id.in_(body.ids)))).scalars().all())
+        if body.ids
+        else []
+    )
+    users.sort(key=lambda u: u.name)
+    pdf = cards_svc.render_per_page(cards_svc.ID_CARD, await _user_cards(session, users))
+    return _pdf_response(pdf, "stocky-id-cards.pdf")
+
+
 @router.patch("/users/batch", response_model=list[UserRead])
 async def batch_update_users(
     body: UserBatchUpdate, session: AsyncSession = Depends(get_session)
@@ -282,3 +316,29 @@ async def user_barcode_svg(
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found.")
     return Response(content=barcode_svc.render_svg(user.barcode), media_type="image/svg+xml")
+
+
+@router.get("/users/{user_id}/id-card.pdf")
+async def user_id_card_pdf(
+    user_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> Response:
+    """A single user ID card PDF, sized to the card."""
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found.")
+    (card,) = await _user_cards(session, [user])
+    return _pdf_response(cards_svc.render_single(cards_svc.ID_CARD, card), "stocky-id-card.pdf")
+
+
+@router.get("/groups/{group_id}/id-cards.pdf")
+async def group_id_cards_pdf(
+    group_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> Response:
+    """ID cards for every user in a group, one per page."""
+    users = list(
+        (await session.execute(select(User).where(User.group_id == group_id).order_by(User.name)))
+        .scalars()
+        .all()
+    )
+    pdf = cards_svc.render_per_page(cards_svc.ID_CARD, await _user_cards(session, users))
+    return _pdf_response(pdf, "stocky-id-cards.pdf")
