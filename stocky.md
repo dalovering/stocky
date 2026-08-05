@@ -13,14 +13,23 @@ Stocky has a few views:
         + users should have this schema:
             + UUID
             + Name
+            + Status (Active / Inactive) — admins can optionally bar Inactive users from the kiosk
             + (dynamic) event history
             + (dynamic) current items on loan
         + Ability to generate or register a bar-code to a user
-        + Ability to generate a User ID card for printing
+        + Ability to generate a User ID card for printing (single, whole-group, or a multi-up sheet)
+        + Multi-select for batch edits (move group / set status / delete) and .xlsx import/export
     + Inventory management
         + Table of items in inventory with CRUD, allow drill-in to see history
         + CRUD should allow passive creation of multi-select properties - e.g. item type should be selected from drop-down but have a "add new" option that will open up form to create a new item type from the create/update item form
-        + Ability to create item tags automatically for printing
+        + Defaults to "active" items (hides Lost/Discarded); search/filter on status, condition,
+          type, location, barcode; a "needs review" banner filters flagged items
+        + Multi-select for batch edits (type / location / condition / status / clear-review / delete)
+          and .xlsx import/export (each row tagged C/U/D to create, update, or delete)
+        + Ability to create item tags automatically for printing (single, whole-type, or multi-up)
+    + History — a filterable, paginated log of every event (checkout, checkin, damage, loss, …)
+    + Settings — app-level toggles (e.g. block Inactive users at the kiosk)
+    + Export — a multi-up US-Letter sheet of every ID card and item tag, for bulk printing
         + Item types should have this schema: 
             + UUID
             + Name/Title
@@ -40,11 +49,16 @@ Stocky has a few views:
             + Photo (from type by default)
             + Description (from type by default)
             + (dynamic) event history
-            + (dynamic) current status
+            + (dynamic) Status — availability *derived from the event log*: Checked out, Available,
+              Unavailable, Lost, Discarded. (Checked out / Available follow check-in/out;
+              Unavailable/Lost/Discarded come from a damage/loss report or an explicit admin action.)
+            + Condition — physical wear (stored, admin-editable): On order, New, Good, Fair, Worn,
+              Damaged. (New becomes Good on first checkout; a damage report sets Damaged.)
+            + Needs-review flag — auto-set when damage/loss is reported so an admin can triage; the
+              admin clears it (or leaves it set)
             + Purchase price
             + Purchase date
             + Location
-            + Condition (New, Used, Lost, Damaged, Discarded)
 + Check-in/out
     + User interface for checking in & checking out items. Note that this should automatically work with barcode readers - e.g. it should handle inputs from barcode readers and intelligently determine what to do without focus issues (some other apps have issues where you need to focus the right input box before scanning an item)
     + basic process

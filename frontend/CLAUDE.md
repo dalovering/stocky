@@ -25,8 +25,9 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
     (`title` + optional `action`). **Navigation is owned entirely by the shell** so it's identical
     everywhere: the top bar shows the "Stocky" brand (links home) + the primary section nav
     (Kiosk · Inventory · Admin) as a **`TabNav`** (the Radix Themes navigation primitive — real
-    `<nav>` links with an active state, *not* `Tabs`, which is for in-page panels). On `/admin/*`
-    the shell auto-renders a centered **`SegmentedControl`** sub-nav (Users · Inventory · Export) —
+    `<nav>` links with an active state, _not_ `Tabs`, which is for in-page panels). On `/admin/*`
+    the shell auto-renders a centered **`SegmentedControl`** sub-nav (Users · Inventory · History ·
+    Export · Settings) —
     the pill/segmented look deliberately differentiates the second nav level from the top tabs —
     plus the "Log out" button. Active state is derived from `usePathname`. **Don't render a
     page-name heading in a page** — the nav already shows where you are. A page puts its own action
@@ -43,6 +44,30 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
   - `components/Dialogs.tsx` — `DialogHeader` (title + ✕), `DialogFooter` (Cancel/Save),
     `ConfirmButton` (inline confirm) and `ConfirmDialog` (controlled confirm for table row deletes).
     Never use native `window.confirm`.
+  - `components/HistoryList.tsx` — the event-history table plus `StatusBadge` (item _and_ user
+    status), `EventBadge`, and `ReviewBadge`. Use these badges; don't hand-roll a `<Badge>`.
+  - **Admin multi-select / batch / IO / filters** (shared by the Users and Inventory tabs, so they
+    behave identically): the `useSelection` hook (`hooks/useSelection.ts`),
+    `components/SelectionBar.tsx` (the "N selected · Edit · Print · Delete · Clear" bar),
+    `components/ImportExportButtons.tsx` (Download `.xlsx` + Import), `components/ImportResultDialog.tsx`,
+    and `components/MultiSelectFilter.tsx` (the multi-value checkbox dropdown used for *every* enum
+    filter — don't build single-value enum `Select` filters). Pass `selectable` +
+    `selectedIds`/`onToggle`/`onToggleMany` to `GroupedTable` to enable checkboxes.
+  - **Filtering (server-side) — use the shared filter bar, don't hand-roll.** Filtering is done by
+    the backend via parameterized list endpoints (multi-valued `status`/`condition`/`type_id`/
+    `location` etc.) — including the *derived* item status — not in the browser. The standard UI is
+    `components/FilterBar.tsx` (lays out a `SearchField` + the page's filter controls + a Reset
+    button that appears only when filters deviate from defaults + a result count) wrapping
+    `MultiSelectFilter`s; `components/SearchField.tsx` is the search input (leading magnifier +
+    clear ×). `hooks/useDebouncedValue.ts` debounces the (now server-hitting) search; pages own the
+    filter state and pass it to `api.*` calls. `hooks/useUrlFilters.ts` mirrors filter state to the
+    URL (via `history.replaceState`, so reload/share keep the filters) and returns `hydrated` — gate
+    the first fetch on it. For `MultiSelectFilter`, Type/Location use `emptyMeansAll` (empty Set =
+    show all, since their option set is dynamic) and `renderOption` for labels (e.g. the
+    `__none__` location sentinel → "(No location)").
+- **Admin tabs.** `/admin/{users,inventory}` are the CRUD + batch tables; `/admin/history` is the
+  paginated event log; `/admin/settings` toggles app config; `/admin/export` downloads the multi-up
+  card sheet. Add a tab via `ADMIN_NAV` in `AppShell.tsx`.
 - **API access.** All backend calls go through the typed client in `lib/api.ts`; it sends cookies
   (`credentials: "include"`) for the admin session. Don't call `fetch` directly from components.
   Keep `lib/types.ts` in sync with the backend `app/schemas`.
@@ -61,12 +86,16 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
 
 ## Printing
 
-- ID cards and item tags print via `components/BarcodeLabelDialog.tsx`. The `.print-area` /
-  `.no-print` classes in `globals.css` control what appears on paper. Barcodes are SVGs served by
-  the backend (`/api/admin/users/{id}/barcode.svg`, `/api/admin/items/{id}/barcode.svg`).
-- The admin **Export data** page (`app/admin/export/page.tsx`) downloads one PDF with every user and
-  item barcode in two sections. It fetches `/api/admin/labels.pdf` via `api.labelsPdf()` (a Blob —
-  use `requestBlob`, not `request`, for binary responses) and triggers a client-side download.
+- ID cards and item tags are **server-rendered PDFs** from SVG templates (backend
+  `app/templates/*.svg` + `services/cards.py`). The Users/Inventory tabs download a single card
+  (`api.userIdCardPdf` / `api.itemTagPdf`), a whole group/type one-per-page
+  (`api.groupIdCardsPdf` / `api.itemTypeTagsPdf`), or the current selection
+  (`api.usersIdCardsPdf` / `api.itemsTagsPdf`). Use `downloadBlob(blob, filename)` from `lib/api`
+  to trigger the download; binary responses go through `requestBlob` (GET) / `requestBlobPost`
+  (POST), not `request`.
+- The admin **Export** page (`app/admin/export/page.tsx`) downloads the multi-up US-Letter sheet
+  (every ID card, then every item tag) via `api.labelsPdf()`.
+- `.no-print` in `globals.css` hides chrome from any browser print; the card PDFs don't rely on it.
 
 ## Testing & lint
 

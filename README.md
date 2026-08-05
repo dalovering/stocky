@@ -9,9 +9,12 @@ engineering rules.
 
 ## Features
 
-- **Administration** — manage users in nestable groups, and manage inventory (item types &
-  individual items) with full CRUD, history drill-in, and barcode/tag/ID-card printing. Protected
-  by an admin password.
+- **Administration** (admin-password protected) — five tabs: **Users & Groups** and **Inventory**
+  (CRUD over nestable groups, item types, and items, with multi-select batch edits and `.xlsx`
+  import/export), **History** (a filterable, paginated event log), **Export** (printable ID-card /
+  item-tag PDFs), and **Settings**. Item availability (Checked out / Available / Unavailable / Lost
+  / Discarded) is derived from the event log; physical condition and a "needs review" flag are
+  tracked separately.
 - **Check-in/out kiosk** — scan a student ID to log in, then scan items to check them in or out.
   Works directly with USB barcode scanners — no need to click into an input box first.
 - **Inventory** — a read-only view for browsing items, locations, and quantities with search and

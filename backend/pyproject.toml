@@ -12,9 +12,11 @@ dependencies = [
     "alembic>=1.14",
     "pydantic-settings>=2.6",
     "pyjwt>=2.10",
-    "python-barcode>=0.15",
     "uvicorn[standard]>=0.34",
     "reportlab>=5.0.0",
+    "openpyxl>=3.1.5",
+    "python-multipart>=0.0.32",
+    "svglib>=2.0.2",
 ]
 
 [dependency-groups]
@@ -45,6 +47,7 @@ extend-immutable-calls = [
     "fastapi.Cookie",
     "fastapi.Query",
     "fastapi.Body",
+    "fastapi.File",
 ]
 
 [tool.pytest.ini_options]

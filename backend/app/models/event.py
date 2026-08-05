@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from sqlalchemy import String
 from sqlmodel import Field, SQLModel
 
 from app.models.common import timestamp_column, utcnow
@@ -18,6 +19,7 @@ class Event(SQLModel, table=True):
     item_id: uuid.UUID = Field(foreign_key="items.id", index=True)
     # The user involved (e.g. who checked the item out). Null for admin/system events.
     user_id: uuid.UUID | None = Field(default=None, foreign_key="users.id", index=True)
-    event_type: EventType = Field(index=True)
+    # Stored as VARCHAR (not a native PG enum) so event types can be added without a DB migration.
+    event_type: EventType = Field(sa_type=String, index=True, nullable=False)
     note: str | None = None
     created_at: datetime = Field(default_factory=utcnow, sa_column=timestamp_column(index=True))

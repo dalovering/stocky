@@ -6,6 +6,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
+from sqlalchemy import String
 from sqlmodel import Field, SQLModel
 
 from app.models.common import timestamp_column, utcnow
@@ -24,7 +25,10 @@ class Item(SQLModel, table=True):
     purchase_price: Decimal | None = Field(default=None, max_digits=12, decimal_places=2)
     purchase_date: date | None = None
     location: str | None = Field(default=None, index=True)
-    condition: Condition = Field(default=Condition.NEW)
+    # Stored as VARCHAR (not a native PG enum) so values can change without a DB migration.
+    condition: Condition = Field(default=Condition.NEW, sa_type=String, nullable=False)
+    # Set true when a damage/loss report comes in; flags the item for an admin to triage.
+    needs_review: bool = Field(default=False, nullable=False)
     # Barcode on the physical item / its printed tag. Unique so a scan resolves to one item.
     barcode: str = Field(index=True, unique=True)
     created_at: datetime = Field(default_factory=utcnow, sa_column=timestamp_column())

@@ -58,12 +58,14 @@ conventions in a subtree, update that subtree's CLAUDE.md in the same commit.
 
 ```bash
 make init-env               # generate .env with openssl-random secrets (prints admin password)
-make run                    # docker-compose up: postgres 18 + backend + frontend
+make run                    # docker-compose: build + start postgres 18 + backend + frontend
+make start                  # docker-compose start WITHOUT rebuilding (fast restart after `make build`)
 make migrate                # apply DB migrations
 make seed                   # load demo data so the kiosk works immediately
 make down                   # stop everything
 
-make dev                    # run backend (uv) + frontend (npm) locally, no docker
+make dev                    # run backend (uv) + frontend (npm dev server) locally, no docker
+make prod-frontend          # build + serve frontend in production mode (no per-page compile; for the Pi)
 make test                   # backend + frontend tests
 make lint                   # ruff + eslint
 make format                 # ruff format + prettier
@@ -79,12 +81,16 @@ The three views once running:
 ## Architecture in one paragraph
 
 The backend is an async FastAPI app over PostgreSQL 18 via SQLModel + asyncpg, with Alembic
-migrations. Item history is **event-sourced**: every checkout/checkin/damage/loss is an `Event`
-row, and an item's *current status* and a user's *current loans* are derived from those events
-(see `backend/app/services/status.py`). Admin endpoints are guarded by a simple password →
-JWT-cookie scheme; the kiosk and read-only inventory endpoints are open on the trusted LAN and
-identify users by scanned barcode. The frontend is a Next.js App Router app using Radix UI; the
-kiosk listens for barcode scans globally (no input focus required).
+migrations. Item history is **event-sourced**: every checkout/checkin/damage/loss/admin action is an
+`Event` row, and an item's *availability status* (Checked out / Available / Unavailable / Lost /
+Discarded) and a user's *current loans* are derived from those events (see
+`backend/app/services/status.py`). Physical *condition* (On order/New/Good/Fair/Worn/Damaged) and a
+*needs-review* flag are stored on the item; *user status* (Active/Inactive) is stored on the user.
+Other services: `cards` (SVG-template tag/ID-card PDFs), `spreadsheet` (xlsx import/export),
+`settings` (app-level config), `serialize`/`queries` (shared read models + filters). Admin endpoints
+are guarded by a simple password → JWT-cookie scheme; the kiosk and read-only inventory endpoints are
+open on the trusted LAN and identify users by scanned barcode. The frontend is a Next.js App Router
+app using Radix UI; the kiosk listens for barcode scans globally (no input focus required).
 
 ---
 
@@ -109,6 +115,9 @@ Follow these so history stays clean and the repo is easy to push to GitHub and r
   and caches are git-ignored. **Do** commit lockfiles (`uv.lock`, `package-lock.json`).
 - **Keep the tree green.** Run `make lint` and `make test` before committing. Don't commit code
   that fails them.
-- **Migrations are immutable once applied/committed.** Add a new Alembic migration to change schema;
-  never edit a migration that's already in history.
+- **Migrations.** Pre-production (where we are now), the `0001` baseline is `metadata.create_all`,
+  so schema changes are applied by rebuilding the DB from the models —
+  `make clean && make db && make migrate && make seed` — *not* by writing per-change migrations.
+  Once there's production data, migrations become immutable: add a new one to change schema and never
+  edit one already in history.
 - **Write meaningful messages.** Explain the *why* in the body when it isn't obvious from the diff.

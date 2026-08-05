@@ -15,6 +15,8 @@ const LABEL: Record<EventType, string> = {
   loss_report: "Reported lost",
   discard: "Discarded",
   repair: "Repaired",
+  mark_unavailable: "Marked unavailable",
+  restore: "Restored",
 };
 
 const COLOR: Record<EventType, "gray" | "green" | "blue" | "orange" | "red"> = {
@@ -25,7 +27,19 @@ const COLOR: Record<EventType, "gray" | "green" | "blue" | "orange" | "red"> = {
   loss_report: "red",
   discard: "red",
   repair: "green",
+  mark_unavailable: "orange",
+  restore: "green",
 };
+
+export const EVENT_TYPE_OPTIONS = (Object.keys(LABEL) as EventType[]).map((value) => ({
+  value,
+  label: LABEL[value],
+}));
+
+/** The coloured badge for one event type — reused by item/user history and the admin history log. */
+export function EventBadge({ type }: { type: EventType }) {
+  return <Badge color={COLOR[type]}>{LABEL[type]}</Badge>;
+}
 
 /**
  * The event history of one `subject`. When it's a user's history every row shares that user, so we
@@ -42,7 +56,7 @@ export function HistoryList({
   const columns: Column<ItemEvent>[] = [
     {
       header: "Action",
-      cell: (e) => <Badge color={COLOR[e.event_type]}>{LABEL[e.event_type]}</Badge>,
+      cell: (e) => <EventBadge type={e.event_type} />,
     },
     subject === "user"
       ? { header: "Item", cell: (e) => e.item_name ?? "—" }
@@ -67,14 +81,28 @@ export function HistoryList({
   return <DataTable rows={events} rowKey={(e) => e.id} empty="No history yet." columns={columns} />;
 }
 
+const STATUS_COLOR: Record<string, "green" | "blue" | "orange" | "red" | "gray"> = {
+  // Item statuses
+  Available: "green",
+  "Checked out": "blue",
+  Unavailable: "orange",
+  Lost: "red",
+  Discarded: "gray",
+  // User statuses
+  Active: "green",
+  Inactive: "gray",
+};
+
+/** Coloured badge for an item or user status. */
 export function StatusBadge({ status }: { status: string }) {
-  const color =
-    status === "Available"
-      ? "green"
-      : status === "On loan"
-        ? "blue"
-        : status === "Damaged"
-          ? "orange"
-          : "red";
-  return <Badge color={color}>{status}</Badge>;
+  return <Badge color={STATUS_COLOR[status] ?? "gray"}>{status}</Badge>;
+}
+
+/** The "needs review" flag shown on flagged items. */
+export function ReviewBadge() {
+  return (
+    <Badge color="orange" variant="soft">
+      review
+    </Badge>
+  );
 }

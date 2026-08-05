@@ -40,7 +40,7 @@ async def test_passive_checkout_then_checkin(admin_client, fixtures):
         )
     ).json()
     assert out["action"] == "checked_out"
-    assert out["item"]["status"] == "On loan"
+    assert out["item"]["status"] == "Checked out"
     assert out["item"]["holder_user_id"] == user["id"]
 
     # User now shows one current loan.
@@ -96,8 +96,9 @@ async def test_item_held_by_other_opens_modal(admin_client, fixtures):
 async def test_report_loss_sets_status(admin_client, fixtures):
     item = fixtures["item"]
     resp = (await admin_client.post("/api/kiosk/report-loss", json={"item_id": item["id"]})).json()
+    # "Lost" is now a derived status (from the loss event); the physical condition is untouched.
     assert resp["status"] == "Lost"
-    assert resp["condition"] == "Lost"
+    assert resp["needs_review"] is True
 
 
 @pytest.mark.asyncio

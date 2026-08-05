@@ -3,26 +3,41 @@
 from __future__ import annotations
 
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import distinct, func, select
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
+from sqlalchemy import delete, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import ensure_unique_barcode, require_admin
+from app.api.responses import pdf_response, xlsx_response
 from app.core.db import get_session
-from app.models import Event, EventType, Item, ItemType
+from app.models import Condition, Event, EventType, Item, ItemStatus, ItemType
+from app.schemas.imports import ImportResult
 from app.schemas.inventory import (
     EventRead,
+    IdList,
+    ItemBatchStatusChange,
+    ItemBatchUpdate,
     ItemCreate,
     ItemRead,
+    ItemStatusChange,
     ItemTypeCreate,
     ItemTypeRead,
     ItemTypeUpdate,
     ItemUpdate,
 )
 from app.services import barcode as barcode_svc
-from app.services.queries import distinct_locations_query, item_filter_query
-from app.services.serialize import serialize_event, serialize_item
+from app.services import cards as cards_svc
+from app.services import events as event_svc
+from app.services import spreadsheet as spreadsheet_svc
+from app.services.queries import distinct_locations_query, item_read_query
+from app.services.serialize import (
+    serialize_event,
+    serialize_item,
+    serialize_items_bulk,
+    serialize_read_rows,
+)
 
 router = APIRouter(
     prefix="/api/admin", tags=["admin:inventory"], dependencies=[Depends(require_admin)]
@@ -126,13 +141,30 @@ async def _unique_item_barcode(session: AsyncSession, proposed: str | None) -> s
 @router.get("/items", response_model=list[ItemRead])
 async def list_items(
     q: str | None = None,
-    type_id: uuid.UUID | None = None,
-    location: str | None = None,
+    type_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    location: Annotated[list[str] | None, Query()] = None,
+    condition: Annotated[list[Condition] | None, Query()] = None,
+    status: Annotated[list[ItemStatus] | None, Query()] = None,
+    needs_review: bool | None = None,
     session: AsyncSession = Depends(get_session),
 ) -> list[ItemRead]:
-    stmt = item_filter_query(q, type_id, location)
-    items = list((await session.execute(stmt)).scalars().all())
-    return [await serialize_item(session, item) for item in items]
+    """List items, filtered server-side — including by the *derived* availability status."""
+    rows = (
+        await session.execute(
+            item_read_query(q, type_id, location, condition, status, needs_review)
+        )
+    ).all()
+    return await serialize_read_rows(session, rows)
+
+
+@router.get("/items/stats")
+async def item_stats(session: AsyncSession = Depends(get_session)) -> dict[str, int]:
+    """Global, filter-independent counts for the toolbar: total items + items needing review."""
+    total = await session.scalar(select(func.count()).select_from(Item))
+    needs_review = await session.scalar(
+        select(func.count()).select_from(Item).where(Item.needs_review.is_(True))
+    )
+    return {"total": int(total or 0), "needs_review": int(needs_review or 0)}
 
 
 @router.post("/items", response_model=ItemRead, status_code=status.HTTP_201_CREATED)
@@ -147,6 +179,110 @@ async def create_item(body: ItemCreate, session: AsyncSession = Depends(get_sess
     await session.flush()
     # Record creation in the event log so history is complete.
     session.add(Event(item_id=item.id, event_type=EventType.CREATE))
+    await session.commit()
+    await session.refresh(item)
+    return await serialize_item(session, item)
+
+
+# ---------------------------------------------------------------------------
+# Batch & status operations
+#
+# Defined before the `/items/{item_id}` routes so the literal "batch" segment is matched
+# first (otherwise "batch" would be parsed as a UUID item id and 422).
+# ---------------------------------------------------------------------------
+# Admin status -> the availability event that produces it. "Checked out" is loan-driven, not
+# directly settable.
+_STATUS_ACTIONS = {
+    ItemStatus.AVAILABLE: event_svc.restore,
+    ItemStatus.UNAVAILABLE: event_svc.mark_unavailable,
+    ItemStatus.LOST: event_svc.mark_lost,
+    ItemStatus.DISCARDED: event_svc.discard,
+}
+
+
+async def _apply_item_status(
+    session: AsyncSession, item: Item, new_status: ItemStatus, note: str | None
+) -> None:
+    action = _STATUS_ACTIONS.get(new_status)
+    if action is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"{new_status} is determined by check-in/out and can't be set directly.",
+        )
+    await action(session, item, note)
+
+
+async def _items_by_ids(session: AsyncSession, ids: list[uuid.UUID]) -> list[Item]:
+    if not ids:
+        return []
+    return list((await session.execute(select(Item).where(Item.id.in_(ids)))).scalars().all())
+
+
+@router.post("/items/batch/status", response_model=list[ItemRead])
+async def batch_set_item_status(
+    body: ItemBatchStatusChange, session: AsyncSession = Depends(get_session)
+) -> list[ItemRead]:
+    items = await _items_by_ids(session, body.ids)
+    for item in items:
+        await _apply_item_status(session, item, body.status, body.note)
+    await session.commit()
+    return await serialize_items_bulk(session, items)
+
+
+@router.patch("/items/batch", response_model=list[ItemRead])
+async def batch_update_items(
+    body: ItemBatchUpdate, session: AsyncSession = Depends(get_session)
+) -> list[ItemRead]:
+    data = body.patch.model_dump(exclude_unset=True)
+    items = await _items_by_ids(session, body.ids)
+    for item in items:
+        for field, value in data.items():
+            setattr(item, field, value)
+        session.add(item)
+    await session.commit()
+    return await serialize_items_bulk(session, items)
+
+
+@router.post("/items/batch-delete", status_code=status.HTTP_204_NO_CONTENT)
+async def batch_delete_items(body: IdList, session: AsyncSession = Depends(get_session)) -> None:
+    if body.ids:
+        # Remove history first to satisfy the events -> items foreign key.
+        await session.execute(delete(Event).where(Event.item_id.in_(body.ids)))
+        await session.execute(delete(Item).where(Item.id.in_(body.ids)))
+        await session.commit()
+
+
+@router.post("/items/tags.pdf")
+async def items_tags_pdf(body: IdList, session: AsyncSession = Depends(get_session)) -> Response:
+    """Item tags for a selection of items, one per page."""
+    items = await _items_by_ids(session, body.ids)
+    items.sort(key=lambda i: i.name)
+    pdf = cards_svc.render_per_page(
+        cards_svc.ITEM_TAG, await cards_svc.build_item_cards(session, items)
+    )
+    return pdf_response(pdf, "stocky-item-tags.pdf")
+
+
+@router.get("/items.xlsx")
+async def export_items(session: AsyncSession = Depends(get_session)) -> Response:
+    return xlsx_response(await spreadsheet_svc.items_workbook(session), "stocky-items.xlsx")
+
+
+@router.post("/items/import", response_model=ImportResult)
+async def import_items(
+    file: UploadFile = File(...), session: AsyncSession = Depends(get_session)
+) -> ImportResult:
+    return await spreadsheet_svc.import_items(session, await file.read())
+
+
+@router.post("/items/{item_id}/status", response_model=ItemRead)
+async def set_item_status(
+    item_id: uuid.UUID, body: ItemStatusChange, session: AsyncSession = Depends(get_session)
+) -> ItemRead:
+    item = await session.get(Item, item_id)
+    if item is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found.")
+    await _apply_item_status(session, item, body.status, body.note)
     await session.commit()
     await session.refresh(item)
     return await serialize_item(session, item)
@@ -199,11 +335,33 @@ async def item_events(
     return [await serialize_event(session, e) for e in result.scalars().all()]
 
 
-@router.get("/items/{item_id}/barcode.svg")
-async def item_barcode_svg(
+@router.get("/items/{item_id}/tag.pdf")
+async def item_tag_pdf(
     item_id: uuid.UUID, session: AsyncSession = Depends(get_session)
 ) -> Response:
+    """A single item tag PDF, sized to the tag."""
     item = await session.get(Item, item_id)
     if item is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found.")
-    return Response(content=barcode_svc.render_svg(item.barcode), media_type="image/svg+xml")
+    (card,) = await cards_svc.build_item_cards(session, [item])
+    return pdf_response(cards_svc.render_single(cards_svc.ITEM_TAG, card), "stocky-item-tag.pdf")
+
+
+@router.get("/item-types/{type_id}/tags.pdf")
+async def item_type_tags_pdf(
+    type_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> Response:
+    """Tags for every item of a type, one per page."""
+    items = list(
+        (
+            await session.execute(
+                select(Item).where(Item.item_type_id == type_id).order_by(Item.name)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    pdf = cards_svc.render_per_page(
+        cards_svc.ITEM_TAG, await cards_svc.build_item_cards(session, items)
+    )
+    return pdf_response(pdf, "stocky-item-tags.pdf")

@@ -80,6 +80,7 @@ class ItemUpdate(BaseModel):
     purchase_date: date | None = None
     location: str | None = None
     condition: Condition | None = None
+    needs_review: bool | None = None
 
 
 class ItemRead(BaseModel):
@@ -94,6 +95,7 @@ class ItemRead(BaseModel):
     purchase_date: date | None
     location: str | None
     condition: Condition
+    needs_review: bool = False
     barcode: str
     # Derived/enriched fields:
     item_type_name: str | None = None
@@ -102,6 +104,35 @@ class ItemRead(BaseModel):
     holder_name: str | None = None
     # When the current open loan began (only set while On loan).
     checked_out_at: datetime | None = None
+
+
+class ItemStatusChange(BaseModel):
+    """Admin request to set an item's availability (emits the matching event)."""
+
+    status: ItemStatus
+    note: str | None = None
+
+
+class ItemBatchStatusChange(ItemStatusChange):
+    ids: list[uuid.UUID]
+
+
+class ItemBatchPatch(BaseModel):
+    """Fields that can be applied to many items at once (omit a field to leave it unchanged)."""
+
+    item_type_id: uuid.UUID | None = None
+    location: str | None = None
+    condition: Condition | None = None
+    needs_review: bool | None = None
+
+
+class ItemBatchUpdate(BaseModel):
+    ids: list[uuid.UUID]
+    patch: ItemBatchPatch
+
+
+class IdList(BaseModel):
+    ids: list[uuid.UUID]
 
 
 class EventRead(BaseModel):

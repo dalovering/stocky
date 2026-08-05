@@ -4,6 +4,12 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Always reserve the scrollbar's space so opening a dialog (which locks body scroll) doesn't
+     shift the page sideways. */
+  scrollbar-gutter: stable;
+}
+
 html,
 body {
   margin: 0;
@@ -29,20 +35,8 @@ body {
   height: auto;
 }
 
-/* Print styles: only the element marked .print-area shows when printing (ID cards, tags). */
+/* Printing is done via server-rendered PDFs; for any direct browser print, just hide the chrome. */
 @media print {
-  body * {
-    visibility: hidden;
-  }
-  .print-area,
-  .print-area * {
-    visibility: visible;
-  }
-  .print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-  }
   .no-print {
     display: none !important;
   }

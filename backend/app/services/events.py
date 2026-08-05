@@ -1,7 +1,9 @@
-"""Kiosk loan operations: checkout / checkin / report damage / report loss.
+"""Loan & availability operations: checkout / checkin / damage / loss / admin status changes.
 
-These functions enforce the business rules from the spec and append to the event log.
-They raise `LoanError` for rule violations; the API layer maps that to HTTP 409.
+These functions enforce the business rules from the spec and append to the event log. They
+raise `LoanError` for rule violations; the API layer maps that to HTTP 409. Availability
+changes are recorded as events so the derived `ItemStatus` (see `services/status.py`) stays the
+single source of truth — nothing here stores a status directly.
 """
 
 from __future__ import annotations
@@ -10,8 +12,8 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Condition, Event, EventType, Item
-from app.services.status import latest_checkout_holder
+from app.models import Condition, Event, EventType, Item, ItemStatus
+from app.services.status import item_status, latest_checkout_holder
 
 
 class LoanError(Exception):
@@ -24,8 +26,13 @@ async def check_out(session: AsyncSession, item: Item, user_id: uuid.UUID) -> Ev
         raise LoanError("You already have this item checked out.")
     if holder is not None:
         raise LoanError("This item is currently checked out by another user.")
-    if item.condition in (Condition.LOST, Condition.DISCARDED):
-        raise LoanError(f"This item cannot be checked out (condition: {item.condition}).")
+    status, _ = await item_status(session, item)
+    if status in (ItemStatus.LOST, ItemStatus.DISCARDED, ItemStatus.UNAVAILABLE):
+        raise LoanError(f"This item cannot be checked out (status: {status}).")
+    # A brand-new item becomes "Good" the moment it's first issued.
+    if item.condition == Condition.NEW:
+        item.condition = Condition.GOOD
+        session.add(item)
     event = Event(item_id=item.id, user_id=user_id, event_type=EventType.CHECKOUT)
     session.add(event)
     return event
@@ -45,7 +52,9 @@ async def check_in(session: AsyncSession, item: Item, user_id: uuid.UUID) -> Eve
 async def report_damage(
     session: AsyncSession, item: Item, user_id: uuid.UUID | None, note: str | None = None
 ) -> Event:
+    """Record damage: set the physical condition, flag for review, and append the event."""
     item.condition = Condition.DAMAGED
+    item.needs_review = True
     session.add(item)
     event = Event(item_id=item.id, user_id=user_id, event_type=EventType.DAMAGE_REPORT, note=note)
     session.add(event)
@@ -56,8 +65,58 @@ async def report_loss(
     session: AsyncSession, item: Item, user_id: uuid.UUID | None, note: str | None = None
 ) -> Event:
     """Mark an item lost. This also closes any open loan (it leaves circulation)."""
-    item.condition = Condition.LOST
+    item.needs_review = True
     session.add(item)
     event = Event(item_id=item.id, user_id=user_id, event_type=EventType.LOSS_REPORT, note=note)
+    session.add(event)
+    return event
+
+
+# ---------------------------------------------------------------------------
+# Admin availability changes — each appends the matching availability event.
+# ---------------------------------------------------------------------------
+def _availability_event(
+    item: Item, event_type: EventType, user_id: uuid.UUID | None, note: str | None
+) -> Event:
+    event = Event(item_id=item.id, user_id=user_id, event_type=event_type, note=note)
+    return event
+
+
+async def mark_unavailable(
+    session: AsyncSession, item: Item, note: str | None = None, user_id: uuid.UUID | None = None
+) -> Event:
+    event = _availability_event(item, EventType.MARK_UNAVAILABLE, user_id, note)
+    session.add(event)
+    return event
+
+
+async def mark_lost(
+    session: AsyncSession, item: Item, note: str | None = None, user_id: uuid.UUID | None = None
+) -> Event:
+    event = _availability_event(item, EventType.LOSS_REPORT, user_id, note)
+    session.add(event)
+    return event
+
+
+async def discard(
+    session: AsyncSession, item: Item, note: str | None = None, user_id: uuid.UUID | None = None
+) -> Event:
+    event = _availability_event(item, EventType.DISCARD, user_id, note)
+    session.add(event)
+    return event
+
+
+async def restore(
+    session: AsyncSession,
+    item: Item,
+    note: str | None = None,
+    user_id: uuid.UUID | None = None,
+    clear_review: bool = True,
+) -> Event:
+    """Reset an item back to Available and (by default) clear its needs-review flag."""
+    if clear_review:
+        item.needs_review = False
+        session.add(item)
+    event = _availability_event(item, EventType.RESTORE, user_id, note)
     session.add(event)
     return event

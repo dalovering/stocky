@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Box, Flex, IconButton, Table, Text, Tooltip } from "@radix-ui/themes";
+import { Box, Checkbox, Flex, IconButton, Table, Text, Tooltip } from "@radix-ui/themes";
 import { ChevronDownIcon, ChevronRightIcon } from "@radix-ui/react-icons";
 
 import type { Column } from "./DataTable";
@@ -56,6 +56,13 @@ function collectIds<T>(groups: GroupNode<T>[], acc: Set<string>): Set<string> {
   return acc;
 }
 
+/** Every leaf row's key under a node (including nested children) — for per-group select-all. */
+function collectRowKeys<T>(node: GroupNode<T>, rowKey: (row: T) => string): string[] {
+  const keys = node.rows.map(rowKey);
+  for (const child of node.children ?? []) keys.push(...collectRowKeys(child, rowKey));
+  return keys;
+}
+
 /**
  * The one grouped/nested table used across the app. Renders group-header rows (with an
  * expand/collapse toggle and optional group actions) interleaved with their leaf rows, all in a
@@ -70,6 +77,10 @@ export function GroupedTable<T>({
   onRowClick,
   defaultExpanded = true,
   empty = "Nothing here yet.",
+  selectable = false,
+  selectedIds,
+  onToggle,
+  onToggleMany,
 }: {
   columns: Column<T>[];
   groups: GroupNode<T>[];
@@ -78,7 +89,14 @@ export function GroupedTable<T>({
   onRowClick?: (row: T) => void;
   defaultExpanded?: boolean;
   empty?: ReactNode;
+  // Opt-in multi-select: a leading checkbox column on leaf rows + a select-all on each group.
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onToggle?: (id: string, checked: boolean) => void;
+  onToggleMany?: (ids: string[], checked: boolean) => void;
 }) {
+  const keyOf = (row: T) => String(rowKey(row));
+  const selected = selectedIds ?? new Set<string>();
   // Track which groups are *collapsed* rather than expanded: groups load asynchronously, so a
   // set of expanded ids built on first render (when `groups` is still empty) would leave
   // everything collapsed. With a collapsed set, any group — including ones that arrive later — is
@@ -94,7 +112,7 @@ export function GroupedTable<T>({
     return any(groups);
   }, [groups]);
   const hasActions = Boolean(rowActions) || hasGroupActions;
-  const totalColumns = columns.length + (hasActions ? 1 : 0);
+  const totalColumns = columns.length + (hasActions ? 1 : 0) + (selectable ? 1 : 0);
 
   function toggle(id: string) {
     setCollapsed((prev) => {
@@ -138,6 +156,7 @@ export function GroupedTable<T>({
     <Table.Root variant="surface" className="grouped-table">
       <Table.Header>
         <Table.Row>
+          {selectable && <Table.ColumnHeaderCell aria-label="Select" style={{ width: 36 }} />}
           {columns.map((c, i) => (
             <Table.ColumnHeaderCell key={i}>{c.header}</Table.ColumnHeaderCell>
           ))}
@@ -148,7 +167,28 @@ export function GroupedTable<T>({
         {entries.map((e) =>
           e.kind === "group" ? (
             <Table.Row key={e.key} style={{ background: "var(--gray-2)" }}>
-              <Table.Cell colSpan={totalColumns}>
+              {selectable && (
+                <Table.Cell onClick={(ev) => ev.stopPropagation()}>
+                  {(() => {
+                    const keys = collectRowKeys(e.node, keyOf);
+                    const picked = keys.filter((k) => selected.has(k)).length;
+                    const checked =
+                      keys.length > 0 && picked === keys.length
+                        ? true
+                        : picked > 0
+                          ? "indeterminate"
+                          : false;
+                    return (
+                      <Checkbox
+                        checked={checked}
+                        disabled={keys.length === 0}
+                        onCheckedChange={(c) => onToggleMany?.(keys, c === true)}
+                      />
+                    );
+                  })()}
+                </Table.Cell>
+              )}
+              <Table.Cell colSpan={selectable ? totalColumns - 1 : totalColumns}>
                 <Flex align="center" gap="2" style={{ paddingLeft: e.depth * 20 }}>
                   <IconButton
                     size="1"
@@ -179,11 +219,16 @@ export function GroupedTable<T>({
               className={onRowClick ? "clickable" : undefined}
               onClick={onRowClick ? () => onRowClick(e.row) : undefined}
             >
+              {selectable && (
+                <Table.Cell onClick={(ev) => ev.stopPropagation()}>
+                  <Checkbox
+                    checked={selected.has(keyOf(e.row))}
+                    onCheckedChange={(c) => onToggle?.(keyOf(e.row), c === true)}
+                  />
+                </Table.Cell>
+              )}
               {columns.map((c, i) => (
-                <Table.Cell
-                  key={i}
-                  style={i === 0 ? { paddingLeft: e.depth * 20 + 8 } : undefined}
-                >
+                <Table.Cell key={i} style={i === 0 ? { paddingLeft: e.depth * 20 + 8 } : undefined}>
                   {c.cell(e.row)}
                 </Table.Cell>
               ))}

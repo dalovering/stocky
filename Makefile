@@ -31,11 +31,15 @@ build: ## Build all docker images
 	$(COMPOSE) build
 
 .PHONY: run
-run: ## Start the full stack (postgres 18 + backend + frontend)
+run: ## Build and start the full stack (postgres 18 + backend + frontend)
 	$(COMPOSE) up -d --build
 
 .PHONY: up
 up: run ## Alias for `run`
+
+.PHONY: start
+start: ## Start the full stack WITHOUT rebuilding (fast restart; run `make build` first if code changed)
+	$(COMPOSE) up -d
 
 .PHONY: down
 down: ## Stop the full stack
@@ -115,8 +119,12 @@ dev-backend: db migrate ## Run only the backend locally (uv), starting Postgres 
 	cd $(BACKEND) && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 .PHONY: dev-frontend
-dev-frontend: ## Run only the frontend locally (npm)
+dev-frontend: ## Run only the frontend locally (npm dev server — compiles on demand; not for the Pi)
 	cd $(FRONTEND) && npm run dev
+
+.PHONY: prod-frontend
+prod-frontend: ## Build + serve the frontend in production mode (no per-page compile; best for the Pi without docker)
+	cd $(FRONTEND) && npm run build && npm start
 
 # ---------------------------------------------------------------------------
 # Quality: tests, lint, format

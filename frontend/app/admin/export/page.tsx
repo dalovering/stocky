@@ -10,7 +10,7 @@ import { api } from "@/lib/api";
 export default function ExportPage() {
   const [printing, setPrinting] = useState(false);
 
-  // Download the barcode-label sheet (every user + item) as a PDF the admin can print.
+  // Download the multi-up card sheet (every user ID card + every item tag) as a printable PDF.
   async function downloadLabels() {
     setPrinting(true);
     try {
@@ -18,7 +18,7 @@ export default function ExportPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "stocky-barcode-labels.pdf";
+      a.download = "stocky-cards.pdf";
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -29,10 +29,11 @@ export default function ExportPage() {
   return (
     <AppShell>
       <Card>
-        <Heading size="3">Barcode labels (PDF)</Heading>
+        <Heading size="3">ID cards &amp; item tags (PDF)</Heading>
         <Text as="p" size="2" color="gray" mt="1">
-          One PDF with every user ID-card barcode and every item tag, in two sections — print the
-          whole set in one go.
+          A multi-up US-Letter sheet with every user ID card and every item tag, in two sections —
+          handy for bulk printing or checking the templates. Print a single card or a whole
+          group/type from the Users and Inventory tabs.
         </Text>
         <Button mt="3" onClick={downloadLabels} loading={printing}>
           <DownloadIcon /> Download PDF
