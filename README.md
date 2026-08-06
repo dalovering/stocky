@@ -72,3 +72,24 @@ make lint        # ruff + eslint
 
 > **Note:** the backend is managed exclusively with `uv` — do not use `pip`. PostgreSQL is pinned
 > to version 18 and must not be downgraded.
+
+## Deployment note
+
+Stocky is built for a **trusted local network** — a Raspberry Pi on a school LAN. The kiosk and
+read-only inventory endpoints are intentionally unauthenticated so students can scan without
+logging in; only the administration surface requires a password. Don't port-forward it or put it
+on a guest network. See [SECURITY.md](SECURITY.md) for the full threat model.
+
+## Contributing
+
+Issues and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the setup and
+the handful of non-negotiable rules (Postgres 18, uv not pip, no fakes in tests, a migration with
+every schema change).
+
+Found a security problem? Please report it
+[privately](https://github.com/dalovering/stocky/security/advisories/new) rather than opening an
+issue.
+
+## License
+
+[MIT](LICENSE) © 2026 Dean Lovering

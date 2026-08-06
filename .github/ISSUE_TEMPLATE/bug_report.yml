@@ -1,0 +1,80 @@
+name: Bug report
+description: Something in Stocky doesn't work the way it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report.
+
+        **Two things before you fill this in:**
+
+        - **Security problems don't belong here.** They go through
+          [private reporting](https://github.com/dalovering/stocky/security/advisories/new)
+          so they stay private until fixed.
+        - **Redact real student data.** Stocky handles student names, and issues on a public
+          repository are permanent and world-readable. Blur screenshots and replace real names
+          with placeholders before pasting anything.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you get instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to the Inventory admin tab
+        2. Select two items and choose Batch edit
+        3. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it happen?
+      options:
+        - Admin — Inventory
+        - Admin — Users & Groups
+        - Admin — History
+        - Admin — Export (PDFs)
+        - Admin — Settings
+        - Kiosk (barcode check-in/out)
+        - Inventory (read-only browse)
+        - Login / setup / admin password
+        - Backend API
+        - Setup, Makefile, or docker-compose
+        - Something else / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+      description: Output of `git rev-parse --short HEAD`, if you know it.
+
+  - type: dropdown
+    id: how-running
+    attributes:
+      label: How are you running it?
+      options:
+        - "`make run` (docker-compose)"
+        - "`make dev` (local, no docker)"
+        - Raspberry Pi 4
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: "`make logs`, or the browser console. Redact any real names first."
+      render: shell
