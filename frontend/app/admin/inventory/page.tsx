@@ -17,6 +17,7 @@ import {
   TextField,
 } from "@radix-ui/themes";
 import {
+  DownloadIcon,
   ExclamationTriangleIcon,
   EyeOpenIcon,
   IdCardIcon,
@@ -1093,9 +1094,22 @@ function ItemDetailDialog({
         </Text>
 
         <Separator my="3" size="4" />
-        <Heading size="3" mb="2">
-          History
-        </Heading>
+        <Flex justify="between" align="center" mb="2">
+          <Heading size="3">History</Heading>
+          <Button
+            size="1"
+            variant="soft"
+            color="gray"
+            onClick={async () =>
+              downloadBlob(
+                await api.eventsXlsx({ item_id: item.id }),
+                `stocky-history-${item.name}.xlsx`,
+              )
+            }
+          >
+            <DownloadIcon /> .xlsx
+          </Button>
+        </Flex>
         <HistoryList events={events} subject="item" />
       </Dialog.Content>
     </Dialog.Root>

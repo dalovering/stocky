@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button, Flex, Select, Text, TextField } from "@radix-ui/themes";
+import { DownloadIcon } from "@radix-ui/react-icons";
 
 import { AppShell } from "@/components/AppShell";
 import { DataTable, type Column } from "@/components/DataTable";
@@ -9,7 +10,7 @@ import { FilterBar } from "@/components/FilterBar";
 import { EventBadge, EVENT_TYPE_OPTIONS } from "@/components/HistoryList";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
-import { api } from "@/lib/api";
+import { api, ApiError, downloadBlob } from "@/lib/api";
 import type { ItemEvent, Page } from "@/lib/types";
 
 const PAGE_SIZE = 50;
@@ -80,6 +81,25 @@ export default function HistoryPage() {
     setDateTo("");
   }
 
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  // Export whatever the filters currently show — unfiltered, that's the entire history
+  // (the xlsx endpoint has no pagination and no 90-day default window).
+  async function download() {
+    setDownloadError(null);
+    try {
+      const blob = await api.eventsXlsx({
+        q: debouncedQ || undefined,
+        event_type: eventType === ALL ? undefined : eventType,
+        date_from: dateFrom || undefined,
+        date_to: dateTo ? `${dateTo}T23:59:59` : undefined,
+      });
+      downloadBlob(blob, "stocky-history.xlsx");
+    } catch (e) {
+      setDownloadError(e instanceof ApiError ? e.message : "Download failed.");
+    }
+  }
+
   const columns: Column<ItemEvent>[] = [
     {
       header: "When",
@@ -143,7 +163,16 @@ export default function HistoryPage() {
             />
           </Flex>
         </FilterBar>
+        <Button variant="soft" color="gray" onClick={download}>
+          <DownloadIcon /> .xlsx
+        </Button>
       </Flex>
+
+      {downloadError && (
+        <Text size="2" color="red" mb="2" as="p">
+          {downloadError}
+        </Text>
+      )}
 
       <DataTable
         rows={page.items}

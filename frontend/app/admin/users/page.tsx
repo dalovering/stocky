@@ -12,7 +12,14 @@ import {
   Text,
   TextField,
 } from "@radix-ui/themes";
-import { EyeOpenIcon, IdCardIcon, Pencil1Icon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
+import {
+  DownloadIcon,
+  EyeOpenIcon,
+  IdCardIcon,
+  Pencil1Icon,
+  PlusIcon,
+  TrashIcon,
+} from "@radix-ui/react-icons";
 
 import { AppShell } from "@/components/AppShell";
 import { ConfirmButton, ConfirmDialog, DialogFooter, DialogHeader } from "@/components/Dialogs";
@@ -654,9 +661,22 @@ function UserDetailDialog({
         )}
 
         <Separator my="4" size="4" />
-        <Heading size="3" mb="2">
-          History
-        </Heading>
+        <Flex justify="between" align="center" mb="2">
+          <Heading size="3">History</Heading>
+          <Button
+            size="1"
+            variant="soft"
+            color="gray"
+            onClick={async () =>
+              downloadBlob(
+                await api.eventsXlsx({ user_id: user.id }),
+                `stocky-history-${user.name}.xlsx`,
+              )
+            }
+          >
+            <DownloadIcon /> .xlsx
+          </Button>
+        </Flex>
         <HistoryList events={events} subject="user" />
       </Dialog.Content>
     </Dialog.Root>
