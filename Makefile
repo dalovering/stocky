@@ -221,6 +221,39 @@ prod-frontend: ## Build + serve the frontend in production mode (no per-page com
 	cd $(FRONTEND) && npm run build && npm start
 
 # ---------------------------------------------------------------------------
+# Label printer (Nelko PM220) — device wiring in docker-compose.printer.yml; README has
+# the Pi/macOS setup. The status/test/scan-check targets run the production service code
+# via app/printer_cli.py inside the backend container (where device access must work).
+# ---------------------------------------------------------------------------
+.PHONY: printer-probe
+printer-probe: ## Identify the label printer on this machine (device nodes + USB id)
+	@lsusb 2>/dev/null || true
+	@ls -l /dev/usb/lp* 2>/dev/null || echo "no /dev/usb/lp* (usblp not bound, or printer off/unplugged)"
+	@cat /sys/class/usbmisc/lp0/device/ieee1284_id 2>/dev/null && echo || true
+	@ls -l /dev/rfcomm* /dev/cu.* 2>/dev/null || true
+
+.PHONY: printer-status
+printer-status: ## Read + decode the printer status inside the backend container (no printing)
+	$(COMPOSE) exec backend uv run python -m app.printer_cli status
+
+.PHONY: printer-test
+printer-test: ## Print one calibration label from the backend container
+	$(COMPOSE) exec backend uv run python -m app.printer_cli test
+
+.PHONY: printer-scan-check
+printer-scan-check: ## Print one real item tag to scan back at the kiosk: make printer-scan-check b=<barcode>
+	@if [ -z "$(b)" ]; then echo "Usage: make printer-scan-check b=<item barcode>" >&2; exit 1; fi
+	$(COMPOSE) exec backend uv run python -m app.printer_cli item "$(b)"
+
+.PHONY: dev-printer-status
+dev-printer-status: ## Printer status via the local env (make dev setups, e.g. macOS + Bluetooth serial)
+	cd $(BACKEND) && uv run python -m app.printer_cli status
+
+.PHONY: dev-printer-test
+dev-printer-test: ## Calibration label via the local env (make dev setups)
+	cd $(BACKEND) && uv run python -m app.printer_cli test
+
+# ---------------------------------------------------------------------------
 # Quality: tests, lint, format
 # ---------------------------------------------------------------------------
 .PHONY: test

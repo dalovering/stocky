@@ -1,0 +1,43 @@
+# Label-printer device access for the backend container (Nelko PM220 over USB).
+#
+# This is a compose OVERRIDE, deliberately not part of docker-compose.yml: Docker Desktop
+# on macOS can't share /dev or pass USB devices, so baking this in would break `make run`
+# on a dev Mac. Opt in on the Pi by adding to .env:
+#
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.printer.yml
+#   PRINTER_DEVICE=/dev/usb/lp0
+#
+# (docker compose reads COMPOSE_FILE natively, so every existing target — make run,
+# start, logs — picks the override up with no Makefile changes.)
+#
+# Pi-side one-time setup (see README "Label printer"):
+#   - usblp must claim the printer (it does by default; if CUPS is installed it steals
+#     the device and blacklists usblp: `systemctl disable --now cups cups-browsed`).
+#   - /dev/usb/lp0 is root:lp 0660 on Raspberry Pi OS; PRINTER_GID below must be the
+#     host's `lp` gid (`getent group lp | cut -d: -f3`, 7 on Debian/RPi OS).
+
+services:
+  backend:
+    environment:
+      PRINTER_DEVICE: ${PRINTER_DEVICE:-/dev/usb/lp0}
+      PRINTER_TRANSPORT: ${PRINTER_TRANSPORT:-auto}
+      PRINTER_BAUD: ${PRINTER_BAUD:-115200}
+      PRINTER_BITMAP_MODE: ${PRINTER_BITMAP_MODE:-1}
+    volumes:
+      # Bind the DIRECTORY, not the node: /dev/usb/lp0 vanishes when the printer powers
+      # off, and a `devices:` mapping resolves only once at container start. With the
+      # directory mounted, the node reappears inside the container when the printer does.
+      - /dev/usb:/dev/usb
+    device_cgroup_rules:
+      - "c 180:* rmw" # char major 180 = usblp
+    group_add:
+      - "${PRINTER_GID:-7}" # host gid of `lp`
+
+    # --- Bluetooth SPP fallback (only if USB data turns out to be disabled) ---
+    # Bind the printer first on the host:
+    #   bluetoothctl pair <MAC> && bluetoothctl trust <MAC>
+    #   sudo rfcomm bind 0 <MAC> 1
+    # then set PRINTER_DEVICE=/dev/rfcomm0 in .env and swap the device access to:
+    #   devices:
+    #     - "/dev/rfcomm0:/dev/rfcomm0"
+    # (rfcomm nodes are stable once bound, so a direct device mapping is fine there.)
