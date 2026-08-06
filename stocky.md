@@ -27,6 +27,9 @@ Stocky has a few views:
         + Multi-select for batch edits (type / location / condition / status / clear-review / delete)
           and .xlsx import/export (each row tagged C/U/D to create, update, or delete)
         + Ability to create item tags automatically for printing (single, whole-type, or multi-up)
+        + Optional direct label printing: item tags and compact user badges print to a Nelko PM220
+          thermal label printer (TSPL2 over USB/Bluetooth serial) from the same print buttons,
+          alongside the PDF downloads; configured in Settings (enable switch, label stock, density)
     + History — a filterable, paginated log of every event (checkout, checkin, damage, loss, …)
     + Settings — app-level toggles (e.g. block Inactive users at the kiosk)
     + Export — a multi-up US-Letter sheet of every ID card and item tag, for bulk printing

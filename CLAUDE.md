@@ -95,10 +95,14 @@ Discarded) and a user's *current loans* are derived from those events (see
 *needs-review* flag are stored on the item; *user status* (Active/Inactive) is stored on the user.
 Other services: `cards` (SVG-template tag/ID-card PDFs), `spreadsheet` (xlsx import/export),
 `settings` (app-level config), `admin_auth` (hashed admin password, set up in-app on first launch —
-never in `.env`), `serialize`/`queries` (shared read models + filters). Admin endpoints are guarded
-by a password → JWT-cookie scheme; the kiosk and read-only inventory endpoints are open on the
-trusted LAN and identify users by scanned barcode. The frontend is a Next.js App Router app using
-Radix UI; the kiosk listens for barcode scans globally (no input focus required).
+never in `.env`), `serialize`/`queries` (shared read models + filters), and the **label printer**
+stack — `tspl` (TSPL2 encoding + status frames for the Nelko PM220 thermal printer), `label_raster`
+(1-bit Pillow labels with pixel-exact Code128), `printer`/`printer_transport` (job orchestration
+over a USB/serial byte stream; device path via `PRINTER_DEVICE`, stock size via admin settings).
+Admin endpoints are guarded by a password → JWT-cookie scheme; the kiosk and read-only inventory
+endpoints are open on the trusted LAN and identify users by scanned barcode. The frontend is a
+Next.js App Router app using Radix UI; the kiosk listens for barcode scans globally (no input focus
+required).
 
 ---
 

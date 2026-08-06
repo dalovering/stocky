@@ -22,11 +22,13 @@ app/
 ├── schemas/           # Pydantic request/response models (decoupled from tables)
 ├── services/          # status derivation, loan/admin events, barcode allocation, card PDFs (cards),
 │                       #   xlsx import/export (spreadsheet), app settings, admin password (admin_auth),
-│                       #   serializers, shared queries
+│                       #   serializers, shared queries, label printer (tspl + label_raster +
+│                       #   printer + printer_transport — see "Label printer" below)
 ├── templates/         # SVG card templates (item_tag.svg, user_id_card.svg) filled by services/cards
 ├── api/               # routers: auth, admin_users, admin_inventory, admin_history, admin_settings,
-│                       #   admin_export (full-DB xlsx), kiosk, inventory, labels
-│                       #   + deps + responses (shared pdf/xlsx helpers)
+│                       #   admin_export (full-DB xlsx), kiosk, inventory, labels, printing
+│                       #   + deps + responses (shared pdf/png/xlsx helpers)
+├── printer_cli.py     # ops CLI (status/test/item/job) — same service code as the API
 ├── seed.py            # demo data (`make seed`)
 └── tests/             # pytest against a real postgres:18 container (testcontainers — never SQLite)
 alembic/               # migrations (env.py wires the async engine + SQLModel metadata)
@@ -63,6 +65,31 @@ alembic/               # migrations (env.py wires the async engine + SQLModel me
   reserved in Postgres. Keep that pattern for new tables.
 - **Auth.** Admin routes depend on `require_admin` (validates the session JWT cookie). Kiosk and
   inventory routes are intentionally open (trusted LAN). Don't add auth to those without discussing.
+
+## Label printer (Nelko PM220)
+
+- **Layers.** `services/tspl.py` is the pure TSPL2 encoder + status-frame parser — its
+  job-header/BITMAP tests freeze the byte sequence captured from real hardware; don't "clean up"
+  the formatting. `services/label_raster.py` composes labels as Pillow mode-"1" images
+  (`tobytes()` IS the BITMAP payload) with Code128 at an **integer 2 dots/module — never scale
+  barcode bars**; a code that doesn't fit raises `LabelTooNarrow` (409) instead of degrading.
+  `services/printer_transport.py` is a non-blocking fd + select() byte stream (USB char device or
+  raw serial tty; stdlib only). `services/printer.py` orchestrates jobs: header doubles as the
+  pre-flight status probe (paper/lid/roll-width from the roll's RFID tag), busy-bit pacing between
+  labels, everything deadline-capped, batches capped at 50.
+- **The raster path deliberately does not reuse the SVG templates** — vector→dot-grid resampling
+  wrecks 1-bit output. Both paths consume the same `CardData`, which is the reuse that matters.
+- **Config split (intentional):** the device node is env-only (`PRINTER_DEVICE` etc. in
+  `core/config.py`) — a DB-editable device path would hand any admin session an
+  arbitrary-file-write primitive. The *label stock* (width/height/gap/density) and the
+  `printer_enabled` master switch live in `AppSettings` (admin-editable, no migration).
+- **No printer in CI, no fakes:** tests drive the real job state machine through ptys with
+  CRC-valid frames and assert on wire bytes; previews are decoded back to the row's barcode.
+  Hardware-only checks live behind `make printer-probe/-status/-test/-scan-check`
+  (`app/printer_cli.py` — keep it on the service code path, never a shell reimplementation).
+- **Firmware quirks:** native TSPL `BARCODE`/`QRCODE` are broken (rasterize instead); no
+  print-completion ack (busy-bit polling only); BITMAP row padding bits print black (keep padding
+  columns white); `PRINT N` repeats one bitmap, so N different labels = N blocks in one job.
 
 ## Migrations (Alembic)
 
