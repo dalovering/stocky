@@ -41,6 +41,19 @@ class Settings(BaseSettings):
     git_commit: str = "unknown"
     git_version: str = "dev"
 
+    # ---- Label printer (Nelko PM220) ----
+    # Device node the backend writes TSPL to. Empty = no printer attached. This is env
+    # config (machine wiring), not a DB setting: a DB-editable device path would hand any
+    # admin session an arbitrary-file-write primitive.
+    #   Linux USB: /dev/usb/lp0 · Linux Bluetooth SPP: /dev/rfcomm0 · macOS BT: /dev/cu.<name>
+    printer_device: str = ""
+    # "auto" | "usb" | "serial". auto picks serial when the node is a tty.
+    printer_transport: str = "auto"
+    # Serial/Bluetooth-SPP baud (ttys only). The PM220 speaks 115200 8N1.
+    printer_baud: int = 115200
+    # TSPL BITMAP mode: 1 = OR (documented TSPL, works on the PM220), 3 = PM220-specific
+    # mode seen in hardware captures. Flip to 3 if bitmaps print inverted/garbled.
+    printer_bitmap_mode: int = 1
     # Optional TrueType font for rasterized printer labels (services/label_raster.py).
     # Empty = Pillow's embedded scalable font (Latin-1 coverage, zero files to ship).
     label_font_path: str = ""

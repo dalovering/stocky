@@ -89,6 +89,38 @@ async def test_preview_respects_configured_label_size(admin_client, fixtures):
 
 
 @pytest.mark.asyncio
+async def test_printer_info_requires_admin(client):
+    assert (await client.get("/api/admin/printer")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_printer_info_unconfigured_no_device_io(admin_client):
+    info = (await admin_client.get("/api/admin/printer")).json()
+    assert info["configured"] is False
+    assert info["enabled"] is False
+    assert info["state"] == "Not configured"
+    assert info["device"] is None
+    assert info["label_width_mm"] == 50.0
+    assert info["max_batch"] == 50
+    # probe=true on an unconfigured printer is still a no-op, not an error
+    probed = (await admin_client.get("/api/admin/printer?probe=true")).json()
+    assert probed["state"] == "Not configured"
+
+
+@pytest.mark.asyncio
+async def test_printer_probe_unreachable_device(admin_client, monkeypatch):
+    from app.core.config import settings as app_config
+
+    monkeypatch.setattr(app_config, "printer_device", "/nonexistent/printer0")
+    info = (await admin_client.get("/api/admin/printer")).json()
+    assert info["configured"] is True
+    assert info["state"] == "Not checked"  # no probe requested -> no device I/O
+    probed = (await admin_client.get("/api/admin/printer?probe=true")).json()
+    assert probed["state"] == "Unreachable"
+    assert "/nonexistent/printer0" in probed["message"]
+
+
+@pytest.mark.asyncio
 async def test_preview_on_too_narrow_stock_409s_with_guidance(admin_client, fixtures):
     # A Stocky barcode needs 33 mm printable width; 30 mm stock can't carry it.
     await admin_client.patch(
