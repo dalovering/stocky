@@ -73,3 +73,12 @@ async def test_tag_pdf_requires_admin(client):
     # require_admin runs before the handler, so any id 401s for an unauthenticated client.
     rid = "00000000-0000-0000-0000-000000000000"
     assert (await client.get(f"/api/admin/items/{rid}/tag.pdf")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_single_item_tag_page_is_50x30_mm(admin_client, fixtures):
+    """The single-tag page equals the label stock: 50x30mm = 141.73x85.04pt in the MediaBox."""
+    resp = await admin_client.get(f"/api/admin/items/{fixtures['item']['id']}/tag.pdf")
+    assert b"/MediaBox" in resp.content
+    assert b"141.7" in resp.content
+    assert b"85.0" in resp.content
