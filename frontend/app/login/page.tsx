@@ -5,10 +5,12 @@ import { useEffect, useState } from "react";
 import { Button, Callout, Card, Flex, Heading, TextField } from "@radix-ui/themes";
 
 import { AppShell } from "@/components/AppShell";
+import { useAuth } from "@/components/AuthProvider";
 import { api, ApiError } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { refresh } = useAuth();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -26,6 +28,7 @@ export default function LoginPage() {
     setError(null);
     try {
       await api.login(password);
+      await refresh(); // update the shared auth state (e.g. the shell's admin bar) immediately
       router.push("/admin");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Login failed.");
