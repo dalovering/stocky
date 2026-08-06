@@ -30,6 +30,38 @@ async def item_type_names(session: AsyncSession) -> dict[uuid.UUID, str]:
     return {t.id: t.name for t in (await session.execute(select(ItemType))).scalars()}
 
 
+# --- Bulk row fetches for the label-printing endpoints (name-ordered, like the PDF views) ---
+
+
+async def items_by_ids(session: AsyncSession, ids: list[uuid.UUID]) -> list[Item]:
+    if not ids:
+        return []
+    query = select(Item).where(Item.id.in_(ids)).order_by(Item.name)
+    return list((await session.execute(query)).scalars().all())
+
+
+async def items_by_type_ids(session: AsyncSession, type_ids: list[uuid.UUID]) -> list[Item]:
+    if not type_ids:
+        return []
+    query = select(Item).where(Item.item_type_id.in_(type_ids)).order_by(Item.name)
+    return list((await session.execute(query)).scalars().all())
+
+
+async def users_by_ids(session: AsyncSession, ids: list[uuid.UUID]) -> list[User]:
+    if not ids:
+        return []
+    query = select(User).where(User.id.in_(ids)).order_by(User.name)
+    return list((await session.execute(query)).scalars().all())
+
+
+async def users_by_group_ids(session: AsyncSession, group_ids: list[uuid.UUID]) -> list[User]:
+    """Direct members only — same semantics as the group ID-cards PDF."""
+    if not group_ids:
+        return []
+    query = select(User).where(User.group_id.in_(group_ids)).order_by(User.name)
+    return list((await session.execute(query)).scalars().all())
+
+
 def _latest_event_per_item(*event_types: EventType, columns: list):
     """A `DISTINCT ON (item_id)` subquery selecting the latest of the given event types per item.
 

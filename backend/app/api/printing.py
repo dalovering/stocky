@@ -14,14 +14,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin
-from app.api.responses import png_response
+from app.api.responses import binary_response, png_response
 from app.core.config import settings as app_config
 from app.core.db import get_session
 from app.models import Item, User
-from app.schemas.printing import PrinterInfo, PrinterState
+from app.schemas.inventory import IdList
+from app.schemas.printing import PrinterInfo, PrinterState, PrintResult
 from app.services import cards as cards_svc
 from app.services import label_raster as raster
 from app.services import printer as printer_svc
+from app.services import queries
 from app.services import settings as settings_svc
 from app.services.cards import CardData
 from app.services.tspl import LabelGeometry
@@ -121,3 +123,123 @@ async def user_label_preview(
     card = (await cards_svc.build_user_cards(session, [user]))[0]
     png = _render_png(raster.LabelKind.USER_BADGE, await _label_geometry(session), card)
     return png_response(png, f"badge-{user.barcode}.png")
+
+
+# ---------------------------------------------------------------------------
+# Printing. POST everywhere — a print consumes paper, so no GET may trigger one
+# (browser prefetch / retry would burn labels), and IdList collapses single row,
+# selection, whole-type, and whole-group into one endpoint per label kind.
+# ---------------------------------------------------------------------------
+
+
+async def _print(
+    kind: raster.LabelKind, cards: list[CardData], session: AsyncSession
+) -> PrintResult:
+    app_settings = await settings_svc.load_settings(session)
+    try:
+        outcome = await printer_svc.print_cards(kind, cards, app_settings)
+    except (printer_svc.PrinterNotConfigured, printer_svc.PrinterNotReady) as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except printer_svc.PrinterUnavailable as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    except raster.LabelError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return PrintResult(
+        printed=outcome.printed,
+        requested=outcome.requested,
+        bytes_sent=outcome.bytes_sent,
+        warnings=outcome.warnings,
+    )
+
+
+@router.post("/print/items", response_model=PrintResult)
+async def print_item_tags(
+    body: IdList, session: AsyncSession = Depends(get_session)
+) -> PrintResult:
+    """One tag per selected item (a single id prints a single tag)."""
+    items = await queries.items_by_ids(session, body.ids)
+    cards = await cards_svc.build_item_cards(session, items)
+    return await _print(raster.LabelKind.ITEM_TAG, cards, session)
+
+
+@router.post("/print/item-types", response_model=PrintResult)
+async def print_item_type_tags(
+    body: IdList, session: AsyncSession = Depends(get_session)
+) -> PrintResult:
+    """One tag per item of each selected type."""
+    items = await queries.items_by_type_ids(session, body.ids)
+    cards = await cards_svc.build_item_cards(session, items)
+    return await _print(raster.LabelKind.ITEM_TAG, cards, session)
+
+
+@router.post("/print/users", response_model=PrintResult)
+async def print_user_badges(
+    body: IdList, session: AsyncSession = Depends(get_session)
+) -> PrintResult:
+    """One badge per selected user."""
+    users = await queries.users_by_ids(session, body.ids)
+    cards = await cards_svc.build_user_cards(session, users)
+    return await _print(raster.LabelKind.USER_BADGE, cards, session)
+
+
+@router.post("/print/groups", response_model=PrintResult)
+async def print_group_badges(
+    body: IdList, session: AsyncSession = Depends(get_session)
+) -> PrintResult:
+    """One badge per direct member of each selected group (same scope as the PDF)."""
+    users = await queries.users_by_group_ids(session, body.ids)
+    cards = await cards_svc.build_user_cards(session, users)
+    return await _print(raster.LabelKind.USER_BADGE, cards, session)
+
+
+@router.post("/printer/test-print", response_model=PrintResult)
+async def printer_test_print(session: AsyncSession = Depends(get_session)) -> PrintResult:
+    """One calibration label (works while printing is disabled — it's the setup tool)."""
+    app_settings = await settings_svc.load_settings(session)
+    try:
+        outcome = await printer_svc.print_test_label(app_settings)
+    except (printer_svc.PrinterNotConfigured, printer_svc.PrinterNotReady) as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except printer_svc.PrinterUnavailable as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    return PrintResult(
+        printed=outcome.printed,
+        requested=outcome.requested,
+        bytes_sent=outcome.bytes_sent,
+        warnings=outcome.warnings,
+    )
+
+
+# --- Raw TSPL job export: print without backend device access -------------------------
+# The complete job as bytes, for a raw queue (`lp -o raw` on a Mac with the printer on
+# USB) — and the seam a future in-browser Web Serial / Web Bluetooth transport would
+# fetch. Pure computation: no device, no printer_enabled gate.
+
+
+@router.post("/print/items/job.tspl")
+async def item_tags_tspl_job(
+    body: IdList, session: AsyncSession = Depends(get_session)
+) -> Response:
+    items = await queries.items_by_ids(session, body.ids)
+    cards = await cards_svc.build_item_cards(session, items)
+    return await _tspl_job(raster.LabelKind.ITEM_TAG, cards, session, "stocky-item-tags.tspl")
+
+
+@router.post("/print/users/job.tspl")
+async def user_badges_tspl_job(
+    body: IdList, session: AsyncSession = Depends(get_session)
+) -> Response:
+    users = await queries.users_by_ids(session, body.ids)
+    cards = await cards_svc.build_user_cards(session, users)
+    return await _tspl_job(raster.LabelKind.USER_BADGE, cards, session, "stocky-badges.tspl")
+
+
+async def _tspl_job(
+    kind: raster.LabelKind, cards: list[CardData], session: AsyncSession, filename: str
+) -> Response:
+    app_settings = await settings_svc.load_settings(session)
+    try:
+        job = printer_svc.encode_cards_job(kind, cards, app_settings)
+    except raster.LabelError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return binary_response(job, filename)
