@@ -15,6 +15,14 @@ def pdf_response(content: bytes, filename: str) -> Response:
     )
 
 
+def png_response(content: bytes, filename: str) -> Response:
+    return Response(
+        content=content,
+        media_type="image/png",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
 def xlsx_response(content: bytes, filename: str) -> Response:
     return Response(
         content=content,
