@@ -34,9 +34,7 @@ async def browse_items(
     session: AsyncSession = Depends(get_session),
 ) -> list[ItemRead]:
     """Search/filter items (incl. by derived status). Read-only — no write routes in this module."""
-    rows = (
-        await session.execute(item_read_query(q, type_id, location, condition, status))
-    ).all()
+    rows = (await session.execute(item_read_query(q, type_id, location, condition, status))).all()
     return await serialize_read_rows(session, rows)
 
 
