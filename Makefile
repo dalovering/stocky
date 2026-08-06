@@ -49,9 +49,25 @@ start: ## Start the full stack WITHOUT rebuilding (fast restart; run `make build
 down: ## Stop the full stack
 	$(COMPOSE) down
 
+# Destroys the database volume and everything in it, so it asks first.
+# `make clean FORCE=1` skips the prompt for scripted use.
 .PHONY: clean
-clean: ## Stop the stack and remove volumes (DESTROYS DB DATA)
-	$(COMPOSE) down -v
+clean: ## Stop the stack and DESTROY its database volume (local development only)
+	@if [ "$(FORCE)" = "1" ]; then \
+		$(COMPOSE) down -v; \
+	else \
+		echo "This removes the Postgres volume for this project."; \
+		echo "Every user, item, and borrow record in it is gone. There is no undo."; \
+		echo; \
+		printf "Type 'destroy' to confirm: "; \
+		read -r reply; \
+		if [ "$$reply" = "destroy" ]; then \
+			$(COMPOSE) down -v; \
+		else \
+			echo "Aborted — nothing was removed."; \
+			exit 1; \
+		fi; \
+	fi
 
 .PHONY: logs
 logs: ## Tail logs from all services
