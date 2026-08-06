@@ -1,11 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Callout, Card, Flex, Heading, Switch, Text, TextField } from "@radix-ui/themes";
+import {
+  Badge,
+  Button,
+  Callout,
+  Card,
+  Code,
+  Flex,
+  Heading,
+  Select,
+  Switch,
+  Text,
+  TextField,
+} from "@radix-ui/themes";
+import { CheckIcon, CopyIcon } from "@radix-ui/react-icons";
 
 import { AppShell } from "@/components/AppShell";
 import { api, ApiError } from "@/lib/api";
-import type { AppSettings } from "@/lib/types";
+import { fetchMainHead, fetchTags, type GitHubBranchHead, type GitHubTag } from "@/lib/github";
+import type { AppSettings, VersionInfo } from "@/lib/types";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -79,9 +93,107 @@ export default function SettingsPage() {
           />
         </Card>
         <TimezoneCard settings={settings} onSaved={setSettings} />
+        <SoftwareUpdateCard />
         <ChangePasswordCard />
       </Flex>
     </AppShell>
+  );
+}
+
+function SoftwareUpdateCard() {
+  const [version, setVersion] = useState<VersionInfo | null>(null);
+  const [mainHead, setMainHead] = useState<GitHubBranchHead | null>(null);
+  const [tags, setTags] = useState<GitHubTag[] | null>(null);
+  const [githubDown, setGithubDown] = useState(false);
+  const [target, setTarget] = useState<string>("main");
+  const [pasted, setPasted] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    api.version().then(setVersion);
+    Promise.all([fetchMainHead(), fetchTags()]).then(([head, tagList]) => {
+      setMainHead(head);
+      setTags(tagList);
+      setGithubDown(head === null && tagList === null);
+    });
+  }, []);
+
+  const ref = target === "__custom__" ? pasted.trim() : target;
+  const upToDate =
+    version !== null && mainHead !== null && mainHead.sha.startsWith(version.commit);
+  const commands = `make backup\nmake update REF=${ref || "<ref>"}`;
+
+  async function copy() {
+    await navigator.clipboard.writeText(commands);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <Card>
+      <Heading size="3" mb="3">
+        Software update
+      </Heading>
+      <Flex direction="column" gap="3">
+        <Flex align="center" gap="2">
+          <Text size="2">
+            Running version: <Code>{version ? `${version.version} (${version.commit})` : "…"}</Code>
+          </Text>
+          {version && mainHead && (
+            <Badge color={upToDate ? "green" : "amber"}>
+              {upToDate ? "Up to date with main" : "Update available"}
+            </Badge>
+          )}
+        </Flex>
+
+        {githubDown ? (
+          <Text size="1" color="gray">
+            Couldn&apos;t reach GitHub to list update targets — you can still update manually with
+            the commands below (e.g. <Code>REF=main</Code>).
+          </Text>
+        ) : (
+          <Flex align="center" gap="2" wrap="wrap">
+            <Text size="2">Update to:</Text>
+            <Select.Root value={target} onValueChange={setTarget}>
+              <Select.Trigger />
+              <Select.Content>
+                <Select.Item value="main">
+                  main{mainHead ? ` (${mainHead.sha}${mainHead.date ? `, ${mainHead.date.slice(0, 10)}` : ""})` : ""}
+                </Select.Item>
+                {(tags ?? []).map((t) => (
+                  <Select.Item key={t.name} value={t.name}>
+                    {t.name} ({t.sha})
+                  </Select.Item>
+                ))}
+                <Select.Item value="__custom__">A specific commit…</Select.Item>
+              </Select.Content>
+            </Select.Root>
+            {target === "__custom__" && (
+              <TextField.Root
+                placeholder="Paste a commit hash"
+                value={pasted}
+                onChange={(e) => setPasted(e.target.value)}
+                style={{ width: 220 }}
+              />
+            )}
+          </Flex>
+        )}
+
+        <Text size="1" color="gray">
+          Stocky can&apos;t update itself — run these in the repo on the host (e.g. over SSH).
+          Containers are rebuilt and database migrations apply automatically on start; always back
+          up first.
+        </Text>
+        <Flex align="center" gap="2">
+          <Code size="2" style={{ whiteSpace: "pre", display: "block", padding: "8px 12px" }}>
+            {commands}
+          </Code>
+          <Button size="1" variant="soft" color="gray" onClick={copy}>
+            {copied ? <CheckIcon /> : <CopyIcon />} {copied ? "Copied" : "Copy"}
+          </Button>
+        </Flex>
+      </Flex>
+    </Card>
   );
 }
 
