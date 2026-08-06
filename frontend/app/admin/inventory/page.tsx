@@ -363,6 +363,7 @@ export default function InventoryAdminPage() {
         </FilterBar>
         <Flex gap="2" wrap="wrap">
           <ImportExportButtons
+            entity="items"
             exportName="stocky-items.xlsx"
             onExport={api.itemsXlsx}
             onImport={api.importItems}

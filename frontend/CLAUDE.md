@@ -54,7 +54,10 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
   - **Admin multi-select / batch / IO / filters** (shared by the Users and Inventory tabs, so they
     behave identically): the `useSelection` hook (`hooks/useSelection.ts`),
     `components/SelectionBar.tsx` (the "N selected · Edit · Print · Delete · Clear" bar),
-    `components/ImportExportButtons.tsx` (Download `.xlsx` + Import), `components/ImportResultDialog.tsx`,
+    `components/ImportExportButtons.tsx` (Download `.xlsx` + Import + a `?` help button opening
+    `components/ImportHelpDialog.tsx` — the **single** place the spreadsheet format/action-column
+    semantics are explained; if `backend/app/services/spreadsheet.py` changes, update that dialog
+    in the same PR), `components/ImportResultDialog.tsx`,
     and `components/MultiSelectFilter.tsx` (the multi-value checkbox dropdown used for *every* enum
     filter — don't build single-value enum `Select` filters). Pass `selectable` +
     `selectedIds`/`onToggle`/`onToggleMany` to `GroupedTable` to enable checkboxes; that includes
