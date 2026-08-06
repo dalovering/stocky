@@ -107,13 +107,16 @@ def _parse_enum[E](enum_cls: type[E], value: object, field: str) -> E:
 # ---------------------------------------------------------------------------
 # Users
 # ---------------------------------------------------------------------------
-async def users_workbook(session: AsyncSession) -> bytes:
+async def _user_rows(session: AsyncSession) -> list[list]:
     groups = await group_names(session)
     users = (await session.execute(select(User).order_by(User.name))).scalars()
-    rows = [
+    return [
         ["", str(u.id), u.barcode, u.name, groups.get(u.group_id, ""), str(u.status)] for u in users
     ]
-    return _workbook_bytes(USER_HEADERS, rows)
+
+
+async def users_workbook(session: AsyncSession) -> bytes:
+    return _workbook_bytes(USER_HEADERS, await _user_rows(session))
 
 
 async def import_users(session: AsyncSession, content: bytes) -> ImportResult:
@@ -196,8 +199,9 @@ async def import_users(session: AsyncSession, content: bytes) -> ImportResult:
 # ---------------------------------------------------------------------------
 # History (export only)
 # ---------------------------------------------------------------------------
-async def events_workbook(
+async def _event_rows(
     session: AsyncSession,
+    tz: ZoneInfo,
     *,
     event_type: EventType | None = None,
     user_id: uuid.UUID | None = None,
@@ -205,9 +209,7 @@ async def events_workbook(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     q: str | None = None,
-) -> bytes:
-    """Event history matching the given filters, most recent first."""
-    tz = ZoneInfo(await settings_svc.app_timezone(session))
+) -> list[list]:
     events = (
         await session.execute(
             event_filter_query(
@@ -224,7 +226,7 @@ async def events_workbook(
     # rather than widening a query the paginated admin view also uses.
     item_barcodes = dict((await session.execute(select(Item.id, Item.barcode))).all())
     user_barcodes = dict((await session.execute(select(User.id, User.barcode))).all())
-    rows = [
+    return [
         [
             str(event.id),
             # openpyxl can't write tz-aware datetimes; store the local wall time instead.
@@ -238,16 +240,40 @@ async def events_workbook(
         ]
         for event, item_name, user_name in events
     ]
+
+
+async def events_workbook(
+    session: AsyncSession,
+    *,
+    event_type: EventType | None = None,
+    user_id: uuid.UUID | None = None,
+    item_id: uuid.UUID | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    q: str | None = None,
+) -> bytes:
+    """Event history matching the given filters, most recent first."""
+    tz = ZoneInfo(await settings_svc.app_timezone(session))
+    rows = await _event_rows(
+        session,
+        tz,
+        event_type=event_type,
+        user_id=user_id,
+        item_id=item_id,
+        date_from=date_from,
+        date_to=date_to,
+        q=q,
+    )
     return _workbook_bytes(EVENT_HEADERS, rows)
 
 
 # ---------------------------------------------------------------------------
 # Items
 # ---------------------------------------------------------------------------
-async def items_workbook(session: AsyncSession) -> bytes:
+async def _item_rows(session: AsyncSession) -> list[list]:
     types = await item_type_names(session)
     items = (await session.execute(select(Item).order_by(Item.name))).scalars()
-    rows = [
+    return [
         [
             "",
             str(i.id),
@@ -260,7 +286,10 @@ async def items_workbook(session: AsyncSession) -> bytes:
         ]
         for i in items
     ]
-    return _workbook_bytes(ITEM_HEADERS, rows)
+
+
+async def items_workbook(session: AsyncSession) -> bytes:
+    return _workbook_bytes(ITEM_HEADERS, await _item_rows(session))
 
 
 async def import_items(session: AsyncSession, content: bytes) -> ImportResult:
