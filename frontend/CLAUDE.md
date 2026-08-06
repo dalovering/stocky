@@ -30,9 +30,12 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
     `<nav>` links with an active state, _not_ `Tabs`, which is for in-page panels). On `/admin/*`
     the shell auto-renders a centered **`SegmentedControl`** sub-nav (Users · Inventory · History ·
     Export · Settings) —
-    the pill/segmented look deliberately differentiates the second nav level from the top tabs —
-    plus the "Log out" button. Active state is derived from `usePathname`. **Don't render a
-    page-name heading in a page** — the nav already shows where you are. A page puts its own action
+    the pill/segmented look deliberately differentiates the second nav level from the top tabs.
+    While an admin session is active (per `useAuth()`), the shell shades the top bar **red** with
+    an "Admin" badge on *every* page (kiosk included) and shows the "Log out" button — logging out
+    from a non-admin page just clears the bar; admin pages also navigate to `/login`. Active state
+    is derived from `usePathname`. **Don't render a page-name heading in a page** — the nav
+    already shows where you are. A page puts its own action
     toolbar (search + "Add" buttons, in one `Flex justify="between"` row — don't stack them) in the
     body; the only AppShell prop is `containerSize`. To add a destination, edit `MAIN_NAV` /
     `ADMIN_NAV` in `AppShell.tsx`; never hand-roll a nav, a back-link, or a redundant page title in
@@ -75,11 +78,14 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
 - **API access.** All backend calls go through the typed client in `lib/api.ts`; it sends cookies
   (`credentials: "include"`) for the admin session. Don't call `fetch` directly from components.
   Keep `lib/types.ts` in sync with the backend `app/schemas`.
-- **Auth.** `app/admin/layout.tsx` is a thin guard: it checks `api.authStatus()` and redirects to
-  `/setup` if no admin password has been configured yet, else to `/login` when not authenticated
-  (the shared chrome lives in `AppShell`, rendered per page). `/login` and `/setup` each also check
-  `needs_setup` on mount and redirect to the other, so a bookmarked/direct hit on either always
-  lands on the right one. There is no `.env`-configured admin password — it's created via `/setup`
+- **Auth.** `components/AuthProvider.tsx` (mounted in `app/layout.tsx`) owns the client's view of
+  the admin session: the cookie is httpOnly, so it polls `/api/auth/status` on load, navigation,
+  and tab refocus and exposes `{status, refresh}` via `useAuth()` — call `refresh()` after any
+  login/logout so the shell updates without a reload. `app/admin/layout.tsx` is a thin guard on
+  top of it: it redirects to `/setup` if no admin password has been configured yet, else to
+  `/login` when not authenticated (the shared chrome lives in `AppShell`, rendered per page).
+  `/login` and `/setup` each also check `needs_setup` on mount and redirect to the other, so a
+  bookmarked/direct hit on either always lands on the right one. There is no `.env`-configured admin password — it's created via `/setup`
   on first launch and changed from Admin → Settings (`api.changePassword`). Kiosk and inventory are
   public.
 

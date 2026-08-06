@@ -3,8 +3,18 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Box, Button, Container, Flex, Heading, SegmentedControl, TabNav } from "@radix-ui/themes";
+import {
+  Badge,
+  Box,
+  Button,
+  Container,
+  Flex,
+  Heading,
+  SegmentedControl,
+  TabNav,
+} from "@radix-ui/themes";
 
+import { useAuth } from "@/components/AuthProvider";
 import { api } from "@/lib/api";
 
 // The primary destinations, shown in the top bar on EVERY page. The brand ("Stocky") links home,
@@ -67,15 +77,21 @@ function AdminSubNav({ active }: { active: string }) {
   );
 }
 
-/** Logs the admin out and returns to the login page. Rendered automatically on admin pages. */
+/**
+ * Logs the admin out. Rendered on every page while an admin session is active; only admin pages
+ * navigate away afterwards (logging out from the kiosk just clears the admin bar).
+ */
 function LogoutButton() {
   const router = useRouter();
+  const pathname = usePathname();
+  const { refresh } = useAuth();
   return (
     <Button
       variant="soft"
       onClick={async () => {
         await api.logout();
-        router.replace("/login");
+        await refresh();
+        if (pathname.startsWith("/admin")) router.replace("/login");
       }}
     >
       Log out
@@ -99,6 +115,10 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const isAdmin = pathname.startsWith("/admin");
+  // An active admin session shades the top bar red on EVERY page (kiosk included) so a signed-in
+  // admin is unmistakable on a shared device. UI feedback only — the server still checks the
+  // cookie on every admin request.
+  const authed = useAuth().status?.authenticated === true;
 
   // Highlight the main-nav entry whose route is the current path or a parent of it.
   const mainActive =
@@ -114,7 +134,11 @@ export function AppShell({
         px="5"
         py="3"
         gap="5"
-        style={{ borderBottom: "1px solid var(--gray-5)" }}
+        style={
+          authed
+            ? { background: "var(--red-3)", borderBottom: "1px solid var(--red-6)" }
+            : { borderBottom: "1px solid var(--gray-5)" }
+        }
       >
         <Flex align="center" gap="5">
           <Heading size="5">
@@ -122,9 +146,10 @@ export function AppShell({
               Stocky
             </Link>
           </Heading>
+          {authed && <Badge color="red">Admin</Badge>}
           <MainNav active={mainActive} />
         </Flex>
-        {isAdmin && (
+        {authed && (
           <Flex align="center" gap="3">
             <LogoutButton />
           </Flex>
