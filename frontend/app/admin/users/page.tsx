@@ -213,7 +213,8 @@ export default function UsersPage() {
                 },
                 {
                   label: "Download ID cards PDF",
-                  onClick: () => download(api.groupIdCardsPdf(node.id), `id-cards-${node.name}.pdf`),
+                  onClick: () =>
+                    download(api.groupIdCardsPdf(node.id), `id-cards-${node.name}.pdf`),
                 },
               ]
             : undefined,
@@ -242,7 +243,6 @@ export default function UsersPage() {
       });
     }
     return nodes;
-     
   }, [tree, usersByGroup, printer.available]);
 
   async function confirmDelete() {

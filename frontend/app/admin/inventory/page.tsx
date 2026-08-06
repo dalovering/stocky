@@ -327,7 +327,6 @@ export default function InventoryAdminPage() {
       };
     });
     return dirty ? nodes.filter((n) => n.rows.length > 0) : nodes;
-     
   }, [types, items, dirty, printer.available]);
 
   async function confirmDelete() {

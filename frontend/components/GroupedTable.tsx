@@ -2,7 +2,16 @@
 
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Box, Checkbox, DropdownMenu, Flex, IconButton, Table, Text, Tooltip } from "@radix-ui/themes";
+import {
+  Box,
+  Checkbox,
+  DropdownMenu,
+  Flex,
+  IconButton,
+  Table,
+  Text,
+  Tooltip,
+} from "@radix-ui/themes";
 import { ChevronDownIcon, ChevronRightIcon } from "@radix-ui/react-icons";
 
 import type { Column } from "./DataTable";
