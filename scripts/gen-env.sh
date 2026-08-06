@@ -22,7 +22,6 @@ fi
 
 # Generate secrets.
 JWT_SECRET="$(openssl rand -base64 48 | tr -d '\n')"
-ADMIN_PASSWORD="$(openssl rand -base64 18 | tr -d '\n/+=' | cut -c1-20)"
 DB_PASSWORD="$(openssl rand -base64 18 | tr -d '\n/+=' | cut -c1-20)"
 
 # Start from the example, then substitute the sensitive / derived values.
@@ -40,9 +39,8 @@ sed_inplace() {
 # POSTGRES_PASSWORD is the single source of truth — the backend builds the DB URL from it,
 # so there is nothing else to keep in sync.
 sed_inplace "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${DB_PASSWORD}|"
-sed_inplace "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=${ADMIN_PASSWORD}|"
 sed_inplace "s|^JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|"
 
 echo "Wrote $ENV_FILE with freshly generated secrets."
-echo "  Admin password: ${ADMIN_PASSWORD}"
 echo "(Keep .env private — it is git-ignored.)"
+echo "The admin password isn't set here — the app will prompt you to create one on first launch."
