@@ -15,12 +15,13 @@ from io import BytesIO
 from zoneinfo import ZoneInfo
 
 from openpyxl import Workbook, load_workbook
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Condition, Event, EventType, Group, Item, ItemType, User, UserStatus
 from app.schemas.imports import ImportResult, RowError
 from app.services import barcode as barcode_svc
+from app.services import events as events_svc
 from app.services import settings as settings_svc
 from app.services.queries import event_filter_query, group_names, item_type_names
 
@@ -201,9 +202,7 @@ async def import_users(session: AsyncSession, content: bytes) -> ImportResult:
                 user = await find(rec)
                 if user is None:
                     raise ValueError("No matching user to delete.")
-                await session.execute(
-                    update(Event).where(Event.user_id == user.id).values(user_id=None)
-                )
+                await events_svc.detach_user_history(session, [user.id])
                 await session.delete(user)
                 result.deleted += 1
             else:

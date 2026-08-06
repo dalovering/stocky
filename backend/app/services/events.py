@@ -9,6 +9,7 @@ single source of truth — nothing here stores a status directly.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from sqlalchemy import func, select
@@ -72,6 +73,23 @@ async def report_loss(
     event = Event(item_id=item.id, user_id=user_id, event_type=EventType.LOSS_REPORT, note=note)
     session.add(event)
     return event
+
+
+async def detach_user_history(session: AsyncSession, user_ids: Sequence[uuid.UUID]) -> None:
+    """Prepare user deletion: drop user-only events, anonymize the rest.
+
+    Attendance events belong to the user alone (item_id is NULL) — after the user is gone they
+    would be fully-orphaned rows, so they are deleted. Item history is kept with user_id nulled,
+    exactly as before.
+    """
+    if not user_ids:
+        return
+    await session.execute(
+        sa.delete(Event).where(
+            Event.user_id.in_(user_ids), Event.event_type == EventType.ATTENDANCE
+        )
+    )
+    await session.execute(sa.update(Event).where(Event.user_id.in_(user_ids)).values(user_id=None))
 
 
 async def record_attendance(session: AsyncSession, user_id: uuid.UUID, tz: str) -> Event | None:

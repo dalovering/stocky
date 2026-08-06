@@ -118,3 +118,77 @@ async def test_attendance_history_export_includes_null_item_rows(admin_client, u
     assert record["event_type"] == "attendance"
     assert record["item"] in (None, "")
     assert record["user"] == "Ada"
+
+
+# ---------------------------------------------------------------------------
+# Deletion paths: attendance rows go with the user; item history is anonymized.
+# ---------------------------------------------------------------------------
+async def _seed_history(admin_client, user):
+    """Give the user attendance plus a checkout so both event kinds exist."""
+    item_type = (await admin_client.post("/api/admin/item-types", json={"name": "Calc"})).json()
+    item = (
+        await admin_client.post(
+            "/api/admin/items", json={"item_type_id": item_type["id"], "name": "Calc #1"}
+        )
+    ).json()
+    await admin_client.post("/api/kiosk/scan", json={"barcode": user["barcode"]})  # attendance
+    await admin_client.post(
+        "/api/kiosk/checkout", json={"item_id": item["id"], "user_id": user["id"]}
+    )
+    return item
+
+
+async def _assert_history_detached(admin_client, session, user):
+    assert await _attendance_events(session, user["id"]) == []
+    remaining = list(
+        (
+            await session.execute(select(Event).where(Event.user_id == uuid.UUID(user["id"])))
+        ).scalars()
+    )
+    assert remaining == []  # anonymized, not deleted:
+    checkouts = list(
+        (
+            await session.execute(select(Event).where(Event.event_type == EventType.CHECKOUT))
+        ).scalars()
+    )
+    assert len(checkouts) == 1
+    assert checkouts[0].user_id is None
+
+
+@pytest.mark.asyncio
+async def test_single_delete_removes_attendance_and_detaches_history(admin_client, session, user):
+    await _seed_history(admin_client, user)
+    resp = await admin_client.delete(f"/api/admin/users/{user['id']}")
+    assert resp.status_code in (200, 204)
+    await _assert_history_detached(admin_client, session, user)
+
+
+@pytest.mark.asyncio
+async def test_batch_delete_removes_attendance_and_detaches_history(admin_client, session, user):
+    await _seed_history(admin_client, user)
+    resp = await admin_client.post("/api/admin/users/batch-delete", json={"ids": [user["id"]]})
+    assert resp.status_code in (200, 204)
+    await _assert_history_detached(admin_client, session, user)
+
+
+@pytest.mark.asyncio
+async def test_import_delete_removes_attendance_and_detaches_history(admin_client, session, user):
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    await _seed_history(admin_client, user)
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["action", "id", "barcode", "name", "group", "status"])
+    ws.append(["D", user["id"], "", "", "", ""])
+    buf = BytesIO()
+    wb.save(buf)
+    xlsx = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    result = (
+        await admin_client.post(
+            "/api/admin/users/import", files={"file": ("users.xlsx", buf.getvalue(), xlsx)}
+        )
+    ).json()
+    assert result["deleted"] == 1
+    await _assert_history_detached(admin_client, session, user)
