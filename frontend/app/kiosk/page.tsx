@@ -22,8 +22,9 @@ import { HistoryList, StatusBadge } from "@/components/HistoryList";
 import { api, ApiError } from "@/lib/api";
 import type { Item, ItemEvent, UserDetail } from "@/lib/types";
 
-// Auto-logout after this many ms of inactivity at the kiosk.
-const IDLE_MS = 60_000;
+// Auto-logout after this many ms of inactivity at the kiosk. The admin-configured value
+// (kiosk_idle_timeout_seconds) is fetched on mount; this is the fallback until it arrives.
+const DEFAULT_IDLE_MS = 60_000;
 
 /** A rough "how long ago" label for a checkout timestamp (e.g. "3 days", "2 hours"). */
 function loanDuration(since: string): string {
@@ -59,6 +60,16 @@ export default function KioskPage() {
     userRef.current = user;
   });
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A ref (not state) so the running idle timer always reads the current value without resets.
+  const idleMsRef = useRef(DEFAULT_IDLE_MS);
+  useEffect(() => {
+    api
+      .kioskConfig()
+      .then((c) => {
+        idleMsRef.current = c.idle_timeout_seconds * 1000;
+      })
+      .catch(() => {}); // unreachable backend — keep the default
+  }, []);
 
   const flash = useCallback((t: Toast) => {
     setToast(t);
@@ -77,12 +88,13 @@ export default function KioskPage() {
 
   const resetIdle = useCallback(() => {
     if (idleTimer.current) clearTimeout(idleTimer.current);
+    if (idleMsRef.current <= 0) return; // 0 = never auto-logout
     idleTimer.current = setTimeout(() => {
       if (userRef.current) {
         logout();
         flash({ kind: "info", text: "Logged out due to inactivity." });
       }
-    }, IDLE_MS);
+    }, idleMsRef.current);
   }, [logout, flash]);
 
   const refreshUser = useCallback(async () => {

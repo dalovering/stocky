@@ -44,6 +44,14 @@ export interface Page<T> {
 
 export interface AppSettings {
   kiosk_block_inactive_users: boolean;
+  kiosk_idle_timeout_seconds: number;
+  admin_idle_timeout_minutes: number;
+  timezone: string;
+}
+
+/** The kiosk-safe settings subset served by the public /api/kiosk/config endpoint. */
+export interface KioskConfig {
+  idle_timeout_seconds: number;
 }
 
 export interface AuthStatus {
