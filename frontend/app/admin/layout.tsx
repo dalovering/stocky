@@ -7,9 +7,10 @@ import { Flex, Spinner } from "@radix-ui/themes";
 import { api } from "@/lib/api";
 
 /**
- * Admin subtree guard: redirects to /login unless authenticated. The shared chrome (top bar,
- * nav, logout) lives in `AppShell`, which each admin page renders with its own title/actions —
- * keeping the guard here means it runs once for the whole subtree.
+ * Admin subtree guard: redirects to /setup if no admin password has been configured yet, else to
+ * /login unless authenticated. The shared chrome (top bar, nav, logout) lives in `AppShell`,
+ * which each admin page renders with its own title/actions — keeping the guard here means it
+ * runs once for the whole subtree.
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -19,7 +20,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     api
       .authStatus()
       .then((s) => {
-        if (!s.authenticated) router.replace("/login");
+        if (s.needs_setup) router.replace("/setup");
+        else if (!s.authenticated) router.replace("/login");
         else setReady(true);
       })
       .catch(() => router.replace("/login"));

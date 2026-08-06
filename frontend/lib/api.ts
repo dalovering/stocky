@@ -3,6 +3,7 @@
 
 import type {
   AppSettings,
+  AuthStatus,
   Condition,
   Group,
   GroupTree,
@@ -114,9 +115,12 @@ export const api = {
   base: BASE,
 
   // ---- Auth ----
-  login: (password: string) => post<{ authenticated: boolean }>("/api/auth/login", { password }),
-  logout: () => post<{ authenticated: boolean }>("/api/auth/logout"),
-  authStatus: () => get<{ authenticated: boolean }>("/api/auth/status"),
+  login: (password: string) => post<AuthStatus>("/api/auth/login", { password }),
+  logout: () => post<AuthStatus>("/api/auth/logout"),
+  authStatus: () => get<AuthStatus>("/api/auth/status"),
+  setupAdmin: (password: string) => post<AuthStatus>("/api/auth/setup", { password }),
+  changePassword: (current_password: string, new_password: string) =>
+    post<AuthStatus>("/api/auth/change-password", { current_password, new_password }),
 
   // ---- Admin: groups ----
   groups: () => get<Group[]>("/api/admin/groups"),

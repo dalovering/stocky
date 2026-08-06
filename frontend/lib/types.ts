@@ -46,6 +46,11 @@ export interface AppSettings {
   kiosk_block_inactive_users: boolean;
 }
 
+export interface AuthStatus {
+  authenticated: boolean;
+  needs_setup: boolean;
+}
+
 export interface ImportResult {
   created: number;
   updated: number;
