@@ -9,7 +9,8 @@ engineering rules.
 
 ## Features
 
-- **Administration** (admin-password protected) — five tabs: **Users & Groups** and **Inventory**
+- **Administration** (admin-password protected — set up in-app on first launch, changeable from
+  Settings) — five tabs: **Users & Groups** and **Inventory**
   (CRUD over nestable groups, item types, and items, with multi-select batch edits and `.xlsx`
   import/export), **History** (a filterable, paginated event log), **Export** (printable ID-card /
   item-tag PDFs), and **Settings**. Item availability (Checked out / Available / Unavailable / Lost
@@ -32,19 +33,33 @@ engineering rules.
 ## Quick start
 
 ```bash
-make init-env                 # generate .env with random secrets (prints the admin password)
+make init-env                 # generate .env with random secrets
 make run                      # start postgres 18 + backend + frontend
 make seed                     # load demo data (optional)
 ```
 
 Then open:
 
-- Admin:     http://localhost:3000/admin  (log in at `/login`)
+- Admin:     http://localhost:3000/admin  (first visit prompts you to set an admin password;
+             log in at `/login` afterward)
 - Kiosk:     http://localhost:3000/kiosk
 - Inventory: http://localhost:3000/inventory
 - API docs:  http://localhost:8000/docs
 
 Run `make help` to see all available commands.
+
+### Admin password
+
+There is no admin password in `.env`. The first visit to `/admin` prompts you to create one, and it
+is stored hashed (bcrypt) in the database. Change it from **Admin → Settings** — or, if you are
+locked out and have terminal access on the host:
+
+```bash
+make reset-admin-pass         # prompts for a new admin password
+```
+
+Changing the password does not end sessions that are already signed in; rotate `JWT_SECRET` and
+restart to do that.
 
 ## Development
 

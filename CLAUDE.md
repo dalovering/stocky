@@ -57,11 +57,12 @@ conventions in a subtree, update that subtree's CLAUDE.md in the same commit.
 ## How to run
 
 ```bash
-make init-env               # generate .env with openssl-random secrets (prints admin password)
+make init-env               # generate .env with openssl-random secrets (JWT signing key, DB password)
 make run                    # docker-compose: build + start postgres 18 + backend + frontend
 make start                  # docker-compose start WITHOUT rebuilding (fast restart after `make build`)
 make migrate                # apply DB migrations
 make seed                   # load demo data so the kiosk works immediately
+make reset-admin-pass       # set a new admin password (prompts; recovery if locked out of /admin)
 make down                   # stop everything
 
 make dev                    # run backend (uv) + frontend (npm dev server) locally, no docker
@@ -72,7 +73,8 @@ make format                 # ruff format + prettier
 ```
 
 The three views once running:
-- **Admin** — `http://localhost:3000/admin` (requires admin login at `/login`)
+- **Admin** — `http://localhost:3000/admin` (requires admin login at `/login`; on a fresh database
+  with no admin password configured yet, this instead prompts for one at `/setup`)
 - **Kiosk** — `http://localhost:3000/kiosk` (barcode-driven check-in/out)
 - **Inventory** — `http://localhost:3000/inventory` (read-only browse)
 
@@ -87,10 +89,11 @@ Discarded) and a user's *current loans* are derived from those events (see
 `backend/app/services/status.py`). Physical *condition* (On order/New/Good/Fair/Worn/Damaged) and a
 *needs-review* flag are stored on the item; *user status* (Active/Inactive) is stored on the user.
 Other services: `cards` (SVG-template tag/ID-card PDFs), `spreadsheet` (xlsx import/export),
-`settings` (app-level config), `serialize`/`queries` (shared read models + filters). Admin endpoints
-are guarded by a simple password → JWT-cookie scheme; the kiosk and read-only inventory endpoints are
-open on the trusted LAN and identify users by scanned barcode. The frontend is a Next.js App Router
-app using Radix UI; the kiosk listens for barcode scans globally (no input focus required).
+`settings` (app-level config), `admin_auth` (hashed admin password, set up in-app on first launch —
+never in `.env`), `serialize`/`queries` (shared read models + filters). Admin endpoints are guarded
+by a password → JWT-cookie scheme; the kiosk and read-only inventory endpoints are open on the
+trusted LAN and identify users by scanned barcode. The frontend is a Next.js App Router app using
+Radix UI; the kiosk listens for barcode scans globally (no input focus required).
 
 ---
 

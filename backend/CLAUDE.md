@@ -21,7 +21,8 @@ app/
 ├── models/            # SQLModel tables + enums (the DB schema)
 ├── schemas/           # Pydantic request/response models (decoupled from tables)
 ├── services/          # status derivation, loan/admin events, barcode allocation, card PDFs (cards),
-│                       #   xlsx import/export (spreadsheet), app settings, serializers, shared queries
+│                       #   xlsx import/export (spreadsheet), app settings, admin password (admin_auth),
+│                       #   serializers, shared queries
 ├── templates/         # SVG card templates (item_tag.svg, user_id_card.svg) filled by services/cards
 ├── api/               # routers: auth, admin_users, admin_inventory, admin_history, admin_settings,
 │                       #   kiosk, inventory, labels + deps + responses (shared pdf/xlsx helpers)
