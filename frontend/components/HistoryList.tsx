@@ -17,6 +17,7 @@ const LABEL: Record<EventType, string> = {
   repair: "Repaired",
   mark_unavailable: "Marked unavailable",
   restore: "Restored",
+  attendance: "Attendance",
 };
 
 const COLOR: Record<EventType, "gray" | "green" | "blue" | "orange" | "red"> = {
@@ -29,6 +30,7 @@ const COLOR: Record<EventType, "gray" | "green" | "blue" | "orange" | "red"> = {
   repair: "green",
   mark_unavailable: "orange",
   restore: "green",
+  attendance: "green",
 };
 
 export const EVENT_TYPE_OPTIONS = (Object.keys(LABEL) as EventType[]).map((value) => ({
