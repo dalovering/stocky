@@ -698,13 +698,15 @@ function GroupDialog({
   const isEdit = Boolean(group.id);
   const [name, setName] = useState(group.name ?? "");
   const [parentId, setParentId] = useState<string | null>(group.parent_id ?? null);
+  const [semesterStart, setSemesterStart] = useState(group.semester_start ?? "");
   const [busy, setBusy] = useState(false);
 
   async function save() {
     setBusy(true);
     try {
-      if (isEdit) await api.updateGroup(group.id!, { name, parent_id: parentId });
-      else await api.createGroup({ name, parent_id: parentId });
+      const body = { name, parent_id: parentId, semester_start: semesterStart || null };
+      if (isEdit) await api.updateGroup(group.id!, body);
+      else await api.createGroup(body);
       onSaved();
     } finally {
       setBusy(false);
@@ -737,6 +739,13 @@ function GroupDialog({
                 ))}
               </Select.Content>
             </Select.Root>
+          </Field>
+          <Field label="Semester start" hint="Used by the Attendance tab's semester view.">
+            <TextField.Root
+              type="date"
+              value={semesterStart}
+              onChange={(e) => setSemesterStart(e.target.value)}
+            />
           </Field>
         </Flex>
         <DialogFooter onCancel={onClose} onSave={save} saveDisabled={busy || !name} />
