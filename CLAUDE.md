@@ -33,6 +33,11 @@ These come straight from the spec. They are non-negotiable.
    lighter fake to make something pass, stop — a fake that hides a real-stack bug (as SQLite once
    hid a timezone-type bug here) is worse than no test.
 
+9. **Migrations, always — Stocky has real users and real data.** Every schema change ships with an
+   Alembic migration in the same commit. Never apply a schema change by rebuilding or reseeding a
+   database, and never edit a migration already in history. `make clean` destroys the volume and is
+   a local-development tool only — never point it at a deployment.
+
 If a task seems to require breaking one of these, stop and ask the user instead.
 
 ---
@@ -118,9 +123,10 @@ Follow these so history stays clean and the repo is easy to push to GitHub and r
   and caches are git-ignored. **Do** commit lockfiles (`uv.lock`, `package-lock.json`).
 - **Keep the tree green.** Run `make lint` and `make test` before committing. Don't commit code
   that fails them.
-- **Migrations.** Pre-production (where we are now), the `0001` baseline is `metadata.create_all`,
-  so schema changes are applied by rebuilding the DB from the models —
-  `make clean && make db && make migrate && make seed` — *not* by writing per-change migrations.
-  Once there's production data, migrations become immutable: add a new one to change schema and never
-  edit one already in history.
+- **Migrations — every schema change ships with one.** Stocky is deployed to real users, so a
+  commit that changes `backend/app/models/` must include the Alembic revision that applies it:
+  `make migrate-create m="..."`, **review the generated file**, `make migrate`. Migrations are
+  immutable — never edit one already in history; correct it with a new revision. Never rebuild a
+  database to apply a schema change; `make clean` destroys real data and is local-development only.
+  See [backend/CLAUDE.md](backend/CLAUDE.md) for the full workflow.
 - **Write meaningful messages.** Explain the *why* in the body when it isn't obvious from the diff.

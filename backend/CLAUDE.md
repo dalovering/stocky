@@ -60,14 +60,26 @@ alembic/               # migrations (env.py wires the async engine + SQLModel me
 
 ## Migrations (Alembic)
 
+**Stocky is deployed to real users. Every schema change ships with a migration — no exceptions.**
+
 - Schema lives in `models/`. The baseline migration (`0001`) builds the schema from SQLModel
-  metadata via `metadata.create_all`.
-- **Pre-production (now): rebuild instead of writing migrations.** Change the models, then rebuild
-  the DB from the baseline — `make clean && make db && make migrate && make seed`. Don't autogenerate
-  per-change migrations yet.
-- **Once there's production data**, switch to real migrations: `make migrate-create m="..."`,
-  **review it**, `make migrate`; never edit a committed migration (`compare_type=True` catches
-  column-type changes).
+  metadata via `metadata.create_all`. It is the *starting point only* — never the mechanism for
+  applying a later change.
+- **Workflow for any model change:** edit `models/`, then `make migrate-create m="..."`,
+  **read the generated revision** (autogenerate misses things — renames become drop+add, server
+  defaults and constraints are often omitted, and `compare_type=True` catches column-type changes
+  but not everything), fix it by hand where needed, then `make migrate`.
+- **Include the data.** A migration that changes shape must also move the data — backfill new
+  non-nullable columns, translate renamed enum values. Adding a `NOT NULL` column to a populated
+  table fails without a default or a backfill step.
+- **Write `downgrade()`.** It's the rollback path when a deploy goes wrong on the Pi.
+- **Migrations are immutable.** Never edit one that's already committed; correct it with a new
+  revision. Someone's database has already run the old one.
+- **Never rebuild to fix a schema.** `make clean` destroys the volume and everything in it. It is a
+  local-development tool. On any database with real data, the only path forward is a new migration.
+- **Test the migration, not just the models.** Tests build the schema with `create_all`, so they
+  validate where you're going and say nothing about whether the upgrade gets there. Run
+  `make migrate` against a copy of real data before deploying.
 
 ## Testing & lint
 
