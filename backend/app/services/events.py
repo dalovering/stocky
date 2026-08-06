@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import uuid
 
+import sqlalchemy as sa
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Condition, Event, EventType, Item, ItemStatus
@@ -68,6 +70,35 @@ async def report_loss(
     item.needs_review = True
     session.add(item)
     event = Event(item_id=item.id, user_id=user_id, event_type=EventType.LOSS_REPORT, note=note)
+    session.add(event)
+    return event
+
+
+async def record_attendance(session: AsyncSession, user_id: uuid.UUID, tz: str) -> Event | None:
+    """Append an attendance event if this is the user's first ID scan of the local day.
+
+    "Day" is the calendar day in the app's configured time zone, computed in Postgres
+    (`created_at AT TIME ZONE tz` cast to date) so the boundary matches the attendance report.
+    Returns None when today's attendance is already recorded. Two near-simultaneous scans could
+    in principle both pass the check — a unique index can't guard this because the timezone cast
+    isn't immutable — but a single kiosk makes that window irrelevant in practice.
+    """
+
+    def local_day(column: object) -> sa.Cast:
+        return sa.cast(func.timezone(tz, column), sa.Date)
+
+    existing = await session.scalar(
+        select(Event.id)
+        .where(
+            Event.user_id == user_id,
+            Event.event_type == EventType.ATTENDANCE,
+            local_day(Event.created_at) == local_day(func.now()),
+        )
+        .limit(1)
+    )
+    if existing is not None:
+        return None
+    event = Event(item_id=None, user_id=user_id, event_type=EventType.ATTENDANCE)
     session.add(event)
     return event
 
