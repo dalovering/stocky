@@ -89,7 +89,8 @@ export function GroupedTable<T>({
   onRowClick?: (row: T) => void;
   defaultExpanded?: boolean;
   empty?: ReactNode;
-  // Opt-in multi-select: a leading checkbox column on leaf rows + a select-all on each group.
+  // Opt-in multi-select: a leading checkbox column on leaf rows, a select-all on each group, and
+  // a master select-all in the header (selects every row currently loaded, i.e. the filtered set).
   selectable?: boolean;
   selectedIds?: Set<string>;
   onToggle?: (id: string, checked: boolean) => void;
@@ -111,6 +112,13 @@ export function GroupedTable<T>({
       gs.some((g) => (g.actions?.length ?? 0) > 0 || (g.children ? any(g.children) : false));
     return any(groups);
   }, [groups]);
+
+  // Every leaf row key in the table, for the header's master select-all checkbox.
+  const allRowKeys = useMemo(
+    () => groups.flatMap((g) => collectRowKeys(g, (row) => String(rowKey(row)))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rowKey is a stable page-level fn
+    [groups],
+  );
   const hasActions = Boolean(rowActions) || hasGroupActions;
   const totalColumns = columns.length + (hasActions ? 1 : 0) + (selectable ? 1 : 0);
 
@@ -156,7 +164,27 @@ export function GroupedTable<T>({
     <Table.Root variant="surface" className="grouped-table">
       <Table.Header>
         <Table.Row>
-          {selectable && <Table.ColumnHeaderCell aria-label="Select" style={{ width: 36 }} />}
+          {selectable && (
+            <Table.ColumnHeaderCell aria-label="Select" style={{ width: 36 }}>
+              {(() => {
+                const picked = allRowKeys.filter((k) => selected.has(k)).length;
+                const checked =
+                  allRowKeys.length > 0 && picked === allRowKeys.length
+                    ? true
+                    : picked > 0
+                      ? "indeterminate"
+                      : false;
+                return (
+                  <Checkbox
+                    aria-label="Select all"
+                    checked={checked}
+                    disabled={allRowKeys.length === 0}
+                    onCheckedChange={(c) => onToggleMany?.(allRowKeys, c === true)}
+                  />
+                );
+              })()}
+            </Table.ColumnHeaderCell>
+          )}
           {columns.map((c, i) => (
             <Table.ColumnHeaderCell key={i}>{c.header}</Table.ColumnHeaderCell>
           ))}
