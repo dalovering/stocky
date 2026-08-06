@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { api } from "@/lib/api";
 import type { AuthStatus } from "@/lib/types";
@@ -33,6 +33,7 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
 
   const refresh = useCallback(async () => {
     try {
@@ -54,6 +55,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [refresh]);
+
+  // ---- Admin idle auto-logout -------------------------------------------------------------
+  // While a session is active, sign the admin out after the configured minutes without
+  // pointer/keyboard activity (admin_idle_timeout_minutes, 0 = off). Client-enforced comfort
+  // feature for a shared device; the JWT's absolute expiry is the server-side backstop.
+  const authed = status?.authenticated === true;
+  const pathnameRef = useRef(pathname);
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  });
+
+  useEffect(() => {
+    if (!authed) return;
+
+    let idleMs = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastReset = 0;
+    let cancelled = false;
+
+    const expire = async () => {
+      await api.logout();
+      await refresh();
+      if (pathnameRef.current.startsWith("/admin")) router.replace("/login?reason=idle");
+    };
+    const resetTimer = () => {
+      if (timer) clearTimeout(timer);
+      if (idleMs > 0) timer = setTimeout(() => void expire(), idleMs);
+    };
+    const onActivity = () => {
+      const now = Date.now();
+      if (now - lastReset < 1000) return; // throttle: at most one reset per second
+      lastReset = now;
+      resetTimer();
+    };
+
+    api
+      .getSettings()
+      .then((s) => {
+        if (cancelled) return;
+        idleMs = s.admin_idle_timeout_minutes * 60_000;
+        resetTimer();
+      })
+      .catch(() => {}); // e.g. the session just expired — leave the timer off
+
+    const events = ["pointerdown", "keydown", "wheel", "mousemove"] as const;
+    for (const e of events) window.addEventListener(e, onActivity, { passive: true });
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      for (const e of events) window.removeEventListener(e, onActivity);
+    };
+  }, [authed, refresh, router]);
 
   return <AuthContext.Provider value={{ status, refresh }}>{children}</AuthContext.Provider>;
 }

@@ -81,7 +81,10 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
 - **Auth.** `components/AuthProvider.tsx` (mounted in `app/layout.tsx`) owns the client's view of
   the admin session: the cookie is httpOnly, so it polls `/api/auth/status` on load, navigation,
   and tab refocus and exposes `{status, refresh}` via `useAuth()` — call `refresh()` after any
-  login/logout so the shell updates without a reload. `app/admin/layout.tsx` is a thin guard on
+  login/logout so the shell updates without a reload. It also runs the **admin idle auto-logout**
+  (`admin_idle_timeout_minutes` from settings, 0 = off): throttled activity listeners reset a
+  timer; expiry logs out, refreshes, and redirects `/admin/*` to `/login?reason=idle` (the login
+  page explains). Client-enforced; the JWT absolute expiry is the server backstop. `app/admin/layout.tsx` is a thin guard on
   top of it: it redirects to `/setup` if no admin password has been configured yet, else to
   `/login` when not authenticated (the shared chrome lives in `AppShell`, rendered per page).
   `/login` and `/setup` each also check `needs_setup` on mount and redirect to the other, so a
