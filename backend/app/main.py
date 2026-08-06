@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import (
+    admin_export,
     admin_history,
     admin_inventory,
     admin_settings,
@@ -36,6 +37,7 @@ app.include_router(admin_users.router)
 app.include_router(admin_inventory.router)
 app.include_router(admin_history.router)
 app.include_router(admin_settings.router)
+app.include_router(admin_export.router)
 app.include_router(kiosk.router)
 app.include_router(inventory.router)
 app.include_router(labels.router)

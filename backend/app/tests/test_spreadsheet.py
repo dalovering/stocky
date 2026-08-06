@@ -211,3 +211,53 @@ async def test_export_history_xlsx_filters_by_user(admin_client, seeded):
 @pytest.mark.asyncio
 async def test_export_history_requires_admin(client):
     assert (await client.get("/api/admin/events.xlsx")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_full_database_export(admin_client, seeded):
+    user, item = seeded["user"], seeded["item"]
+    await admin_client.post(
+        "/api/kiosk/checkout", json={"item_id": item["id"], "user_id": user["id"]}
+    )
+
+    resp = await admin_client.get("/api/admin/database.xlsx")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == XLSX
+
+    wb = load_workbook(BytesIO(resp.content))
+    assert wb.sheetnames == ["users", "groups", "item_types", "items", "history", "settings"]
+
+    def sheet_rows(name: str) -> list[dict]:
+        ws = wb[name]
+        data = list(ws.iter_rows(values_only=True))
+        headers = [str(h) for h in data[0]]
+        return [dict(zip(headers, r, strict=False)) for r in data[1:]]
+
+    users = sheet_rows("users")
+    assert [u["name"] for u in users] == ["Ada"]
+    assert users[0]["action"] is None  # import-compatible: blank action column
+
+    groups = sheet_rows("groups")
+    assert [g["name"] for g in groups] == ["Room 12"]
+
+    types = sheet_rows("item_types")
+    assert [t["name"] for t in types] == ["Calculator"]
+
+    items = sheet_rows("items")
+    assert [i["name"] for i in items] == ["Calc #1"]
+
+    history = sheet_rows("history")
+    assert [h["event_type"] for h in history] == ["checkout", "create"]
+
+    # The settings sheet holds exactly the declared AppSettings keys — and above all, never the
+    # admin password hash, which lives in the same settings table.
+    settings_rows = sheet_rows("settings")
+    keys = {r["key"] for r in settings_rows}
+    assert "timezone" in keys
+    assert "admin_password_hash" not in keys
+    assert b"admin_password_hash" not in resp.content
+
+
+@pytest.mark.asyncio
+async def test_full_database_export_requires_admin(client):
+    assert (await client.get("/api/admin/database.xlsx")).status_code == 401
