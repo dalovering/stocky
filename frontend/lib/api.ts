@@ -230,6 +230,9 @@ export const api = {
   // ---- Admin: card/label PDFs ----
   labelsPdf: () => requestBlob("/api/admin/labels.pdf"),
 
+  // ---- Admin: full-database export ----
+  databaseXlsx: () => requestBlob("/api/admin/database.xlsx"),
+
   // ---- Kiosk ----
   scan: (barcode: string, active_user_id?: string | null) =>
     post<ScanResponse>("/api/kiosk/scan", { barcode, active_user_id: active_user_id ?? null }),

@@ -25,7 +25,8 @@ app/
 │                       #   serializers, shared queries
 ├── templates/         # SVG card templates (item_tag.svg, user_id_card.svg) filled by services/cards
 ├── api/               # routers: auth, admin_users, admin_inventory, admin_history, admin_settings,
-│                       #   kiosk, inventory, labels + deps + responses (shared pdf/xlsx helpers)
+│                       #   admin_export (full-DB xlsx), kiosk, inventory, labels
+│                       #   + deps + responses (shared pdf/xlsx helpers)
 ├── seed.py            # demo data (`make seed`)
 └── tests/             # pytest against a real postgres:18 container (testcontainers — never SQLite)
 alembic/               # migrations (env.py wires the async engine + SQLModel metadata)
