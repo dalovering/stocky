@@ -5,15 +5,17 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin
+from app.api.responses import xlsx_response
 from app.core.db import get_session
 from app.models import EventType
 from app.models.common import utcnow
 from app.schemas.common import Page
 from app.schemas.inventory import EventRead
+from app.services import spreadsheet
 from app.services.queries import event_filter_query
 
 router = APIRouter(
@@ -22,6 +24,33 @@ router = APIRouter(
 
 # Default window when the caller doesn't constrain by date or subject: the last three months.
 _DEFAULT_WINDOW = timedelta(days=90)
+
+
+@router.get("/events.xlsx")
+async def export_events(
+    event_type: EventType | None = None,
+    user_id: uuid.UUID | None = None,
+    item_id: uuid.UUID | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    q: str | None = None,
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """History as a spreadsheet: everything matching the filters.
+
+    Deliberately no pagination and no 90-day default — an export means "give me all of it",
+    scoped only by whatever filters the caller passes (user_id/item_id/dates/type/q).
+    """
+    content = await spreadsheet.events_workbook(
+        session,
+        event_type=event_type,
+        user_id=user_id,
+        item_id=item_id,
+        date_from=date_from,
+        date_to=date_to,
+        q=q,
+    )
+    return xlsx_response(content, "stocky-history.xlsx")
 
 
 @router.get("/events", response_model=Page[EventRead])

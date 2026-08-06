@@ -150,3 +150,64 @@ async def test_import_requires_admin(client):
         "/api/admin/users/import", files={"file": ("users.xlsx", content, XLSX)}
     )
     assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_export_history_xlsx(admin_client, seeded):
+    # Build some history through the real API: a checkout and a checkin.
+    user, item = seeded["user"], seeded["item"]
+    await admin_client.post(
+        "/api/kiosk/checkout", json={"item_id": item["id"], "user_id": user["id"]}
+    )
+    await admin_client.post(
+        "/api/kiosk/checkin", json={"item_id": item["id"], "user_id": user["id"]}
+    )
+
+    resp = await admin_client.get("/api/admin/events.xlsx")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == XLSX
+    rows = _rows(resp.content)
+    assert list(rows[0].keys()) == [
+        "id",
+        "created_at",
+        "event_type",
+        "item",
+        "item_barcode",
+        "user",
+        "user_barcode",
+        "note",
+    ]
+    # create + checkout + checkin, most recent first, carrying names and barcodes.
+    types = [r["event_type"] for r in rows]
+    assert types == ["checkin", "checkout", "create"]
+    assert rows[0]["item"] == "Calc #1"
+    assert rows[0]["item_barcode"] == item["barcode"]
+    assert rows[0]["user"] == "Ada"
+    assert rows[0]["user_barcode"] == user["barcode"]
+    # Timestamps come out as naive local wall time (openpyxl can't store tz-aware datetimes).
+    assert rows[0]["created_at"].tzinfo is None
+
+
+@pytest.mark.asyncio
+async def test_export_history_xlsx_filters_by_user(admin_client, seeded):
+    user, item = seeded["user"], seeded["item"]
+    other = (await admin_client.post("/api/admin/users", json={"name": "Grace"})).json()
+    await admin_client.post(
+        "/api/kiosk/checkout", json={"item_id": item["id"], "user_id": user["id"]}
+    )
+
+    all_rows = _rows((await admin_client.get("/api/admin/events.xlsx")).content)
+    narrowed = _rows(
+        (await admin_client.get(f"/api/admin/events.xlsx?user_id={user['id']}")).content
+    )
+    assert len(narrowed) == 1  # just Ada's checkout; the item's create event has no user
+    assert narrowed[0]["user"] == "Ada"
+    assert len(all_rows) > len(narrowed)
+
+    empty = _rows((await admin_client.get(f"/api/admin/events.xlsx?user_id={other['id']}")).content)
+    assert empty == []
+
+
+@pytest.mark.asyncio
+async def test_export_history_requires_admin(client):
+    assert (await client.get("/api/admin/events.xlsx")).status_code == 401
