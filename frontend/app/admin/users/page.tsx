@@ -30,8 +30,10 @@ import { HistoryList, StatusBadge } from "@/components/HistoryList";
 import { ImportExportButtons } from "@/components/ImportExportButtons";
 import { ImportResultDialog } from "@/components/ImportResultDialog";
 import { MultiSelectFilter } from "@/components/MultiSelectFilter";
+import { PrintMenuButton, type PrintMenuItem } from "@/components/PrintMenu";
 import { SelectionBar } from "@/components/SelectionBar";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { usePrinter } from "@/hooks/usePrinter";
 import { useSelection } from "@/hooks/useSelection";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { api, ApiError, downloadBlob } from "@/lib/api";
@@ -41,6 +43,7 @@ import type {
   GroupTree,
   ImportResult,
   ItemEvent,
+  PrintResult,
   UserDetail,
   UserRead,
   UserStatus,
@@ -79,6 +82,8 @@ export default function UsersPage() {
   const [batchDelete, setBatchDelete] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const printer = usePrinter();
 
   const loadGroups = useCallback(async () => {
     setTree(await api.groupTree());
@@ -134,6 +139,42 @@ export default function UsersPage() {
     }
   }
 
+  // Badge printing on the thermal label printer (the CR80 ID-card PDF stays untouched —
+  // the badge is a compact label; the head can't print a full-size card).
+  async function printLabels(resultPromise: Promise<PrintResult>) {
+    try {
+      const r = await resultPromise;
+      const message = `Printed ${r.printed} badge${r.printed === 1 ? "" : "s"}.`;
+      setNotice(r.warnings.length ? `${message} ${r.warnings.join(" ")}` : message);
+      setError(null);
+    } catch (e) {
+      setNotice(null);
+      setError(e instanceof ApiError ? e.message : "Printing failed.");
+    }
+  }
+
+  async function previewLabel(blobPromise: Promise<Blob>) {
+    try {
+      const url = URL.createObjectURL(await blobPromise);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Preview failed.");
+    }
+  }
+
+  function userPrintMenu(id: string, barcode: string): PrintMenuItem[] | undefined {
+    if (!printer.available) return undefined;
+    return [
+      { label: "Print badge to label printer", onClick: () => printLabels(api.printUsers([id])) },
+      {
+        label: "Download ID card PDF",
+        onClick: () => download(api.userIdCardPdf(id), `id-card-${barcode}.pdf`),
+      },
+      { label: "Preview badge", onClick: () => previewLabel(api.userLabelPreview(id)) },
+    ];
+  }
+
   // The server already applied the search/status filters; bucket the users by their group.
   const usersByGroup = useMemo(() => {
     const m = new Map<string, UserRead[]>();
@@ -164,6 +205,18 @@ export default function UsersPage() {
           icon: <IdCardIcon />,
           label: "Print all ID cards",
           onClick: () => download(api.groupIdCardsPdf(node.id), `id-cards-${node.name}.pdf`),
+          menu: printer.available
+            ? [
+                {
+                  label: "Print badges to label printer",
+                  onClick: () => printLabels(api.printGroups([node.id])),
+                },
+                {
+                  label: "Download ID cards PDF",
+                  onClick: () => download(api.groupIdCardsPdf(node.id), `id-cards-${node.name}.pdf`),
+                },
+              ]
+            : undefined,
         },
         { icon: <Pencil1Icon />, label: "Edit group", onClick: () => setEditGroup(node) },
         {
@@ -189,7 +242,8 @@ export default function UsersPage() {
       });
     }
     return nodes;
-  }, [tree, usersByGroup]);
+     
+  }, [tree, usersByGroup, printer.available]);
 
   async function confirmDelete() {
     if (!del) return;
@@ -262,10 +316,25 @@ export default function UsersPage() {
         </Callout.Root>
       )}
 
+      {notice && (
+        <Callout.Root
+          color="green"
+          mb="3"
+          role="status"
+          onClick={() => setNotice(null)}
+          style={{ cursor: "pointer" }}
+        >
+          <Callout.Text>{notice}</Callout.Text>
+        </Callout.Root>
+      )}
+
       <SelectionBar
         count={selected.size}
         onEdit={() => setBatchOpen(true)}
         onPrint={() => download(api.usersIdCardsPdf([...selected]), "id-cards.pdf")}
+        onPrintToPrinter={
+          printer.available ? () => printLabels(api.printUsers([...selected])) : undefined
+        }
         printLabel="Print ID cards"
         onDelete={() => setBatchDelete(true)}
         onClear={clearSelection}
@@ -299,6 +368,7 @@ export default function UsersPage() {
             icon: <IdCardIcon />,
             label: "Print ID card",
             onClick: () => download(api.userIdCardPdf(u.id), `id-card-${u.barcode}.pdf`),
+            menu: userPrintMenu(u.id, u.barcode),
           },
           {
             icon: <TrashIcon />,
@@ -334,8 +404,14 @@ export default function UsersPage() {
             setDetailUser(null);
             setEditUser(u);
           }}
-          onPrint={() =>
-            download(api.userIdCardPdf(detailUser.id), `id-card-${detailUser.barcode}.pdf`)
+          printItems={
+            userPrintMenu(detailUser.id, detailUser.barcode) ?? [
+              {
+                label: "Print ID card",
+                onClick: () =>
+                  download(api.userIdCardPdf(detailUser.id), `id-card-${detailUser.barcode}.pdf`),
+              },
+            ]
           }
         />
       )}
@@ -591,13 +667,13 @@ function UserDetailDialog({
   onClose,
   onChanged,
   onEdit,
-  onPrint,
+  printItems,
 }: {
   user: UserDetail;
   onClose: () => void;
   onChanged: (u: UserDetail) => void;
   onEdit: (u: UserRead) => void;
-  onPrint: () => void;
+  printItems: PrintMenuItem[];
 }) {
   const [events, setEvents] = useState<ItemEvent[]>([]);
 
@@ -629,9 +705,7 @@ function UserDetailDialog({
           <Button size="1" variant="soft" onClick={() => onEdit(user)}>
             Edit
           </Button>
-          <Button size="1" variant="soft" onClick={onPrint}>
-            Print ID card
-          </Button>
+          <PrintMenuButton label="Print ID card" items={printItems} />
           <Button size="1" variant="soft" onClick={regenerate}>
             Regenerate barcode
           </Button>

@@ -16,6 +16,8 @@ import type {
   ItemType,
   KioskConfig,
   Page,
+  PrinterInfo,
+  PrintResult,
   ScanResponse,
   Timeframe,
   UserDetail,
@@ -237,6 +239,20 @@ export const api = {
 
   // ---- Admin: card/label PDFs ----
   labelsPdf: () => requestBlob("/api/admin/labels.pdf"),
+
+  // ---- Admin: label printer (thermal) ----
+  printerInfo: (probe = false) =>
+    get<PrinterInfo>(`/api/admin/printer${probe ? "?probe=true" : ""}`),
+  printerTestPrint: () => post<PrintResult>("/api/admin/printer/test-print"),
+  printItems: (ids: string[]) => post<PrintResult>("/api/admin/print/items", { ids }),
+  printItemTypes: (ids: string[]) => post<PrintResult>("/api/admin/print/item-types", { ids }),
+  printUsers: (ids: string[]) => post<PrintResult>("/api/admin/print/users", { ids }),
+  printGroups: (ids: string[]) => post<PrintResult>("/api/admin/print/groups", { ids }),
+  itemLabelPreview: (id: string) => requestBlob(`/api/admin/print/items/${id}/preview.png`),
+  userLabelPreview: (id: string) => requestBlob(`/api/admin/print/users/${id}/preview.png`),
+  // Raw TSPL job downloads (print without backend device access, e.g. lp -o raw).
+  itemsTsplJob: (ids: string[]) => requestBlobPost("/api/admin/print/items/job.tspl", { ids }),
+  usersTsplJob: (ids: string[]) => requestBlobPost("/api/admin/print/users/job.tspl", { ids }),
 
   // ---- Admin: full-database export ----
   databaseXlsx: () => requestBlob("/api/admin/database.xlsx"),

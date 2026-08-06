@@ -1,17 +1,21 @@
 "use client";
 
 import { Button, Flex, Text } from "@radix-ui/themes";
-import { IdCardIcon, Pencil1Icon, TrashIcon } from "@radix-ui/react-icons";
+import { Pencil1Icon, TrashIcon } from "@radix-ui/react-icons";
+
+import { PrintMenuButton } from "./PrintMenu";
 
 /**
  * The contextual "N selected · Edit · Print · Delete · Clear" bar shown above the admin tables
  * when rows are selected. Identical on the users and inventory pages; only the print label and
- * the callbacks differ.
+ * the callbacks differ. When `onPrintToPrinter` is provided (label printer configured and
+ * enabled), the print button becomes a destination menu; otherwise it stays a plain button.
  */
 export function SelectionBar({
   count,
   onEdit,
   onPrint,
+  onPrintToPrinter,
   printLabel = "Print",
   onDelete,
   onClear,
@@ -19,6 +23,7 @@ export function SelectionBar({
   count: number;
   onEdit: () => void;
   onPrint: () => void;
+  onPrintToPrinter?: () => void;
   printLabel?: string;
   onDelete: () => void;
   onClear: () => void;
@@ -39,9 +44,17 @@ export function SelectionBar({
       <Button size="1" variant="soft" onClick={onEdit}>
         <Pencil1Icon /> Edit
       </Button>
-      <Button size="1" variant="soft" onClick={onPrint}>
-        <IdCardIcon /> {printLabel}
-      </Button>
+      <PrintMenuButton
+        label={printLabel}
+        items={
+          onPrintToPrinter
+            ? [
+                { label: "Print to label printer", onClick: onPrintToPrinter },
+                { label: "Download PDF", onClick: onPrint },
+              ]
+            : [{ label: printLabel, onClick: onPrint }]
+        }
+      />
       <Button size="1" variant="soft" color="red" onClick={onDelete}>
         <TrashIcon /> Delete
       </Button>

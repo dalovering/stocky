@@ -48,6 +48,48 @@ export interface AppSettings {
   kiosk_idle_timeout_seconds: number;
   admin_idle_timeout_minutes: number;
   timezone: string;
+  printer_enabled: boolean;
+  label_width_mm: number;
+  label_height_mm: number;
+  label_gap_mm: number;
+  label_density: number;
+}
+
+/** Live/display state of the label printer (backend PrinterState values, verbatim). */
+export type PrinterState =
+  | "Not configured"
+  | "Not checked"
+  | "Unreachable"
+  | "Ready"
+  | "Out of paper"
+  | "Lid open"
+  | "Busy"
+  | "Error";
+
+/** GET /api/admin/printer — config plus (with ?probe=true) a live status read. */
+export interface PrinterInfo {
+  configured: boolean;
+  enabled: boolean;
+  device: string | null;
+  transport: string;
+  state: PrinterState;
+  message: string;
+  label_width_mm: number;
+  label_height_mm: number;
+  label_gap_mm: number;
+  label_density: number;
+  roll_width_mm: number | null;
+  roll_length_mm: number | null;
+  battery_percent: number | null;
+  max_batch: number;
+}
+
+/** Outcome of a label print job; partial failures surface in `warnings`. */
+export interface PrintResult {
+  printed: number;
+  requested: number;
+  bytes_sent: number;
+  warnings: string[];
 }
 
 /** The kiosk-safe settings subset served by the public /api/kiosk/config endpoint. */

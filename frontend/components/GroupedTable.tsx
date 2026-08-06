@@ -2,10 +2,13 @@
 
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Box, Checkbox, Flex, IconButton, Table, Text, Tooltip } from "@radix-ui/themes";
+import { Box, Checkbox, DropdownMenu, Flex, IconButton, Table, Text, Tooltip } from "@radix-ui/themes";
 import { ChevronDownIcon, ChevronRightIcon } from "@radix-ui/react-icons";
 
 import type { Column } from "./DataTable";
+
+/** One entry in a row action's dropdown menu (see {@link RowAction.menu}). */
+export type RowMenuItem = { label: string; onClick: () => void };
 
 /** One icon button in a row/group action cluster (view, edit, delete, …). */
 export type RowAction = {
@@ -13,6 +16,9 @@ export type RowAction = {
   label: string; // tooltip + aria-label
   onClick: () => void;
   color?: "gray" | "red" | "blue";
+  // When present, the icon opens this menu instead of firing onClick — used by the
+  // print action to offer "label printer" vs "PDF" without adding a second icon.
+  menu?: RowMenuItem[];
 };
 
 /**
@@ -31,19 +37,38 @@ export type GroupNode<T> = {
 function ActionCluster({ actions }: { actions: RowAction[] }) {
   return (
     <Flex gap="1" justify="end" onClick={(e) => e.stopPropagation()}>
-      {actions.map((a) => (
-        <Tooltip key={a.label} content={a.label}>
-          <IconButton
-            size="1"
-            variant="ghost"
-            color={a.color ?? "gray"}
-            aria-label={a.label}
-            onClick={a.onClick}
-          >
-            {a.icon}
-          </IconButton>
-        </Tooltip>
-      ))}
+      {actions.map((a) =>
+        a.menu?.length ? (
+          <DropdownMenu.Root key={a.label}>
+            <Tooltip content={a.label}>
+              <DropdownMenu.Trigger>
+                <IconButton size="1" variant="ghost" color={a.color ?? "gray"} aria-label={a.label}>
+                  {a.icon}
+                </IconButton>
+              </DropdownMenu.Trigger>
+            </Tooltip>
+            <DropdownMenu.Content size="1">
+              {a.menu.map((item) => (
+                <DropdownMenu.Item key={item.label} onSelect={item.onClick}>
+                  {item.label}
+                </DropdownMenu.Item>
+              ))}
+            </DropdownMenu.Content>
+          </DropdownMenu.Root>
+        ) : (
+          <Tooltip key={a.label} content={a.label}>
+            <IconButton
+              size="1"
+              variant="ghost"
+              color={a.color ?? "gray"}
+              aria-label={a.label}
+              onClick={a.onClick}
+            >
+              {a.icon}
+            </IconButton>
+          </Tooltip>
+        ),
+      )}
     </Flex>
   );
 }
