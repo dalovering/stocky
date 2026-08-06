@@ -37,8 +37,10 @@ class AppSettings(BaseModel):
     # here, no redeploy), while the head caps printable width at 48 mm regardless.
     label_width_mm: float = Field(default=50.0, gt=0, le=54)
     label_height_mm: float = Field(default=30.0, gt=0, le=200)
-    # Gap between die-cut labels (TSPL GAP). If label positioning drifts, adjust this.
-    label_gap_mm: float = Field(default=2.0, ge=0, le=20)
+    # Gap between die-cut labels (TSPL GAP) — the printer's gap sensor uses this to find the
+    # label edge, so a wrong value mis-registers or mis-feeds. 6 mm matches Nelko's own rolls
+    # (and the hardware capture the TSPL encoder is pinned to). Measure your stock if unsure.
+    label_gap_mm: float = Field(default=6.0, ge=0, le=20)
     # Print darkness (TSPL DENSITY 0-15). 10 is the hardware-verified default.
     label_density: int = Field(default=10, ge=0, le=15)
 

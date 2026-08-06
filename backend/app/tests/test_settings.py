@@ -14,7 +14,7 @@ DEFAULTS = {
     "printer_enabled": False,
     "label_width_mm": 50.0,
     "label_height_mm": 30.0,
-    "label_gap_mm": 2.0,
+    "label_gap_mm": 6.0,
     "label_density": 10,
 }
 

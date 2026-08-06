@@ -238,7 +238,7 @@ function LabelPrinterCard({
         />
         <NumberSettingField
           label="Label gap (mm)"
-          help="Gap between labels on the roll. If labels drift or misalign, adjust this."
+          help="Gap between labels on the roll — the printer's sensor uses it to find each label's edge, so measure it if labels drift or misalign. Nelko rolls are 6 mm."
           min={0}
           max={20}
           value={settings?.label_gap_mm ?? null}
