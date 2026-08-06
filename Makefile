@@ -117,6 +117,16 @@ reset-admin-pass: ## Set a new admin password (prompts) — recovery when locked
 	cd $(BACKEND) && uv run python -m app.reset_admin_password
 
 # ---------------------------------------------------------------------------
+# Database backup / restore (pg_dump inside the postgres:18 container)
+# ---------------------------------------------------------------------------
+.PHONY: backup
+backup: ## Dump the database to backups/stocky-<timestamp>.dump (compressed pg_dump)
+	@mkdir -p backups
+	@file="backups/stocky-$$(date +%Y%m%d-%H%M%S).dump"; \
+	$(COMPOSE) exec -T db pg_dump -U "$${POSTGRES_USER:-stocky}" -d "$${POSTGRES_DB:-stocky}" -Fc > "$$file" \
+		&& ls -lh "$$file"
+
+# ---------------------------------------------------------------------------
 # Local development (no docker) — backend via uv, frontend via npm
 # ---------------------------------------------------------------------------
 .PHONY: install
