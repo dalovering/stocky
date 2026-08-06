@@ -235,7 +235,8 @@ async def serialize_event(session: AsyncSession, event: Event) -> EventRead:
     if event.user_id is not None:
         user = await session.get(User, event.user_id)
         user_name = user.name if user else None
-    item = await session.get(Item, event.item_id)
+    # item_id is null for user-only events (attendance).
+    item = await session.get(Item, event.item_id) if event.item_id is not None else None
     return EventRead(
         id=event.id,
         item_id=event.item_id,

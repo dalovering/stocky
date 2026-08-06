@@ -139,7 +139,8 @@ class EventRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    item_id: uuid.UUID
+    # Null for user-only events (attendance).
+    item_id: uuid.UUID | None
     item_name: str | None = None
     user_id: uuid.UUID | None
     user_name: str | None = None

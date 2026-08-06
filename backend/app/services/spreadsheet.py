@@ -251,8 +251,8 @@ async def _event_rows(
             # openpyxl can't write tz-aware datetimes; store the local wall time instead.
             event.created_at.astimezone(tz).replace(tzinfo=None),
             str(event.event_type),
-            item_name,
-            item_barcodes.get(event.item_id, ""),
+            item_name or "",
+            item_barcodes.get(event.item_id, "") if event.item_id else "",
             user_name or "",
             user_barcodes.get(event.user_id, "") if event.user_id else "",
             event.note or "",

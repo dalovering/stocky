@@ -40,6 +40,7 @@ class EventType(StrEnum):
     REPAIR = "repair"
     MARK_UNAVAILABLE = "mark_unavailable"  # admin marks an item unavailable
     RESTORE = "restore"  # admin resets an item back to available
+    ATTENDANCE = "attendance"  # user-only (item_id is NULL): first kiosk scan of the day
 
 
 class ItemStatus(StrEnum):

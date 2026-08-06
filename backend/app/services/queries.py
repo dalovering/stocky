@@ -156,14 +156,15 @@ def event_filter_query(
 ) -> Select:
     """Build the admin history query (or its COUNT) with the given filters.
 
-    Joins items (for the name) and left-joins users (user_id is nullable for system events), so a
-    single query carries the item/user names and a free-text `q` can match the note or either name.
+    Left-joins items AND users — both FKs are nullable (user_id for system events, item_id for
+    user-only events like attendance) — so a single query carries the item/user names and a
+    free-text `q` can match the note or either name without dropping null-side rows.
     """
     if count:
         stmt = select(func.count(Event.id))
     else:
         stmt = select(Event, Item.name.label("item_name"), User.name.label("user_name"))
-    stmt = stmt.join(Item, Event.item_id == Item.id).outerjoin(User, Event.user_id == User.id)
+    stmt = stmt.outerjoin(Item, Event.item_id == Item.id).outerjoin(User, Event.user_id == User.id)
 
     if event_type is not None:
         stmt = stmt.where(Event.event_type == event_type)
