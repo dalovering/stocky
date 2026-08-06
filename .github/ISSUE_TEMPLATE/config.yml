@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/dalovering/stocky/security/advisories/new
+    about: Please report security problems privately, not as a public issue.
+  - name: Setup or usage question
+    url: https://github.com/dalovering/stocky/blob/main/README.md
+    about: Check the README and `make help` first — most setup questions are answered there.

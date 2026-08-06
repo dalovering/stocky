@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest something Stocky should be able to do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Stocky deliberately stays small — it runs on a Raspberry Pi 4 in a classroom. Suggestions
+        are welcome, but the bar for adding a dependency, a service, or a whole new screen is
+        high. Describing the problem you hit is more useful than describing the feature you'd
+        build; there may be a lighter way to solve it.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you running into?
+      description: The situation in the classroom or the workflow that isn't working today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like it to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything you've tried or considered instead?
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Fit
+      options:
+        - label: This works on a Raspberry Pi 4 without heavy new dependencies
+        - label: I've checked the [spec](https://github.com/dalovering/stocky/blob/main/stocky.md) and this isn't already covered
