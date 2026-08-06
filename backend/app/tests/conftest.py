@@ -17,9 +17,10 @@ from sqlmodel import SQLModel
 from testcontainers.postgres import PostgresContainer
 
 import app.models  # noqa: F401  (register tables on metadata)
-from app.core.config import settings
 from app.core.db import get_session
 from app.main import app
+
+TEST_ADMIN_PASSWORD = "test-admin-password"
 
 
 @pytest.fixture(scope="session")
@@ -59,7 +60,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient]:
 
 @pytest_asyncio.fixture
 async def admin_client(client: AsyncClient) -> AsyncClient:
-    """A client with a valid admin session cookie."""
-    resp = await client.post("/api/auth/login", json={"password": settings.admin_password})
+    """A client with a valid admin session cookie (runs first-launch setup to get one)."""
+    resp = await client.post("/api/auth/setup", json={"password": TEST_ADMIN_PASSWORD})
     assert resp.status_code == 200, resp.text
     return client

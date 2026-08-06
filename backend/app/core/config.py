@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     # Optional explicit override (e.g. a managed DB). If set, it wins over the components.
     database_url_override: str | None = None
 
-    # Admin auth.
-    admin_password: str = "change-me"
+    # Admin auth. The admin password itself is set up in-app on first launch and stored
+    # (hashed) in the database — see `app/services/admin_auth.py` — not configured here.
     jwt_secret: str = "change-me-to-a-long-random-string"
     jwt_expire_minutes: int = 480
     jwt_algorithm: str = "HS256"
