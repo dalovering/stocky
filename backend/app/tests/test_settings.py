@@ -4,11 +4,20 @@ from __future__ import annotations
 
 import pytest
 
+# The complete settings document with its defaults. Deliberately exact: adding a settings key
+# must be a conscious choice here too, since the document is served verbatim to the admin UI.
+DEFAULTS = {
+    "kiosk_block_inactive_users": False,
+    "kiosk_idle_timeout_seconds": 60,
+    "admin_idle_timeout_minutes": 15,
+    "timezone": "America/New_York",
+}
+
 
 @pytest.mark.asyncio
 async def test_settings_default_and_update(admin_client):
     initial = (await admin_client.get("/api/admin/settings")).json()
-    assert initial == {"kiosk_block_inactive_users": False}
+    assert initial == DEFAULTS
 
     updated = (
         await admin_client.patch("/api/admin/settings", json={"kiosk_block_inactive_users": True})
@@ -21,8 +30,56 @@ async def test_settings_default_and_update(admin_client):
 
 
 @pytest.mark.asyncio
+async def test_settings_timeouts_and_timezone_roundtrip(admin_client):
+    updated = (
+        await admin_client.patch(
+            "/api/admin/settings",
+            json={
+                "kiosk_idle_timeout_seconds": 120,
+                "admin_idle_timeout_minutes": 0,
+                "timezone": "America/Chicago",
+            },
+        )
+    ).json()
+    assert updated["kiosk_idle_timeout_seconds"] == 120
+    assert updated["admin_idle_timeout_minutes"] == 0
+    assert updated["timezone"] == "America/Chicago"
+
+    again = (await admin_client.get("/api/admin/settings")).json()
+    assert again == {**DEFAULTS, **updated}
+
+
+@pytest.mark.asyncio
+async def test_settings_rejects_bad_values(admin_client):
+    for bad_patch in (
+        {"timezone": "Not/AZone"},
+        {"kiosk_idle_timeout_seconds": -1},
+        {"kiosk_idle_timeout_seconds": 3601},
+        {"admin_idle_timeout_minutes": 481},
+    ):
+        resp = await admin_client.patch("/api/admin/settings", json=bad_patch)
+        assert resp.status_code == 422, bad_patch
+
+
+@pytest.mark.asyncio
 async def test_settings_requires_admin(client):
     assert (await client.get("/api/admin/settings")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_kiosk_config_public_and_minimal(client):
+    # Unauthenticated read works (the kiosk has no admin session, and none exists yet here)…
+    config = (await client.get("/api/kiosk/config")).json()
+    # …and exposes exactly the kiosk-safe keys, nothing more (leak guard).
+    assert config == {"idle_timeout_seconds": 60}
+
+    # Reflects admin changes.
+    from app.tests.conftest import TEST_ADMIN_PASSWORD
+
+    await client.post("/api/auth/setup", json={"password": TEST_ADMIN_PASSWORD})
+    await client.patch("/api/admin/settings", json={"kiosk_idle_timeout_seconds": 300})
+    config = (await client.get("/api/kiosk/config")).json()
+    assert config == {"idle_timeout_seconds": 300}
 
 
 @pytest.mark.asyncio
