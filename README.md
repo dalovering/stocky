@@ -61,6 +61,18 @@ make reset-admin-pass         # prompts for a new admin password
 Changing the password does not end sessions that are already signed in; rotate `JWT_SECRET` and
 restart to do that.
 
+### Backup & restore
+
+```bash
+make backup                              # dump the DB to backups/stocky-<timestamp>.dump
+make restore FILE=backups/stocky-....dump  # replace the DB with a dump (asks for confirmation)
+```
+
+Backups use `pg_dump` inside the Postgres container (compressed custom format), so nothing extra
+needs to be installed on the host. Dumps contain real student names and land in the git-ignored
+`backups/` directory — treat them like the private data they are. Take a backup before updating
+or migrating, and note that `make restore` **replaces** everything added since the dump was taken.
+
 ## Development
 
 ```bash
