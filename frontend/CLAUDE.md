@@ -11,7 +11,8 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
 
 ## Stack & conventions
 
-- **App Router** under `app/`. Routes: `/` (home), `/login`, `/admin/*`, `/kiosk`, `/inventory`.
+- **App Router** under `app/`. Routes: `/` (home), `/login`, `/setup` (first-launch admin password
+  creation), `/admin/*`, `/kiosk`, `/inventory`.
 - **Server vs Client components.** Default to Server Components. Add `"use client"` only where you
   need state, effects, or browser APIs (all the interactive pages and dialogs are client
   components). Keep data-only/layout pieces server-side where practical.
@@ -72,8 +73,12 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
   (`credentials: "include"`) for the admin session. Don't call `fetch` directly from components.
   Keep `lib/types.ts` in sync with the backend `app/schemas`.
 - **Auth.** `app/admin/layout.tsx` is a thin guard: it checks `api.authStatus()` and redirects to
-  `/login` when not authenticated (the shared chrome lives in `AppShell`, rendered per page). Kiosk
-  and inventory are public.
+  `/setup` if no admin password has been configured yet, else to `/login` when not authenticated
+  (the shared chrome lives in `AppShell`, rendered per page). `/login` and `/setup` each also check
+  `needs_setup` on mount and redirect to the other, so a bookmarked/direct hit on either always
+  lands on the right one. There is no `.env`-configured admin password — it's created via `/setup`
+  on first launch and changed from Admin → Settings (`api.changePassword`). Kiosk and inventory are
+  public.
 
 ## The barcode scanner (key feature)
 

@@ -1,18 +1,23 @@
-"""Admin authentication: password check + signed-JWT session cookie."""
+"""Admin authentication: password hashing + signed-JWT session cookie."""
 
 from __future__ import annotations
 
-import hmac
 from datetime import UTC, datetime, timedelta
 
+import bcrypt
 import jwt
 
 from app.core.config import settings
 
 
-def verify_admin_password(password: str) -> bool:
-    """Constant-time comparison against the configured admin password."""
-    return hmac.compare_digest(password.encode(), settings.admin_password.encode())
+def hash_password(password: str) -> str:
+    """Hash a password for storage. Never store or compare plaintext."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Check a password against a hash produced by `hash_password`."""
+    return bcrypt.checkpw(password.encode(), password_hash.encode())
 
 
 def create_admin_token() -> str:

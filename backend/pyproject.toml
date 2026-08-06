@@ -17,6 +17,7 @@ dependencies = [
     "openpyxl>=3.1.5",
     "python-multipart>=0.0.32",
     "svglib>=2.0.2",
+    "bcrypt>=5.0.0",
 ]
 
 [dependency-groups]

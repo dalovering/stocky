@@ -92,6 +92,10 @@ migrate-down: ## Roll back the last migration
 seed: ## Load demo data (groups, users, item types, items, barcodes)
 	cd $(BACKEND) && uv run python -m app.seed
 
+.PHONY: reset-admin-pass
+reset-admin-pass: ## Set a new admin password (prompts) — recovery when locked out of /admin
+	cd $(BACKEND) && uv run python -m app.reset_admin_password
+
 # ---------------------------------------------------------------------------
 # Local development (no docker) — backend via uv, frontend via npm
 # ---------------------------------------------------------------------------
