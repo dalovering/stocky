@@ -12,11 +12,15 @@ COMPOSE := docker compose
 BACKEND  := backend
 FRONTEND := frontend
 
+# Only the makefile(s) — the `include .env` above also lands in MAKEFILE_LIST, and `help` must
+# not scan it for targets.
+HELP_SOURCES := $(filter %Makefile %.mk,$(MAKEFILE_LIST))
+
 .DEFAULT_GOAL := help
 
 .PHONY: help
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(HELP_SOURCES) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
 # ---------------------------------------------------------------------------
