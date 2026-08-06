@@ -88,15 +88,12 @@ function LogoutButton() {
  * primary nav, plus an automatic "Log out" on admin pages), an automatic centered sub-nav on
  * `/admin/*`, and a centered content container. Navigation is owned entirely by the shell — pages
  * never render their own page-name heading (the nav already shows where you are) and put their own
- * action toolbar (e.g. search + "Add" buttons) in the body. `title` is only for a landing page
- * like home.
+ * action toolbar (e.g. search + "Add" buttons) in the body.
  */
 export function AppShell({
-  title,
   containerSize = "4",
   children,
 }: {
-  title?: ReactNode;
   containerSize?: "1" | "2" | "3" | "4";
   children: ReactNode;
 }) {
@@ -137,11 +134,6 @@ export function AppShell({
       {isAdmin && <AdminSubNav active={adminActive} />}
 
       <Container size={containerSize} p="5">
-        {title != null && (
-          <Heading size="7" mb="4">
-            {title}
-          </Heading>
-        )}
         {children}
       </Container>
     </Box>

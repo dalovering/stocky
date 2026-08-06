@@ -11,8 +11,9 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
 
 ## Stack & conventions
 
-- **App Router** under `app/`. Routes: `/` (home), `/login`, `/setup` (first-launch admin password
-  creation), `/admin/*`, `/kiosk`, `/inventory`.
+- **App Router** under `app/`. Routes: `/` (redirects to the kiosk — the homescreen is the scan
+  station), `/login`, `/setup` (first-launch admin password creation), `/admin/*`, `/kiosk`,
+  `/inventory`.
 - **Server vs Client components.** Default to Server Components. Add `"use client"` only where you
   need state, effects, or browser APIs (all the interactive pages and dialogs are client
   components). Keep data-only/layout pieces server-side where practical.
@@ -21,9 +22,9 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
   props (`size`, `color`, `gap`, `mb`…) over custom CSS. Global CSS in `app/globals.css` is
   intentionally tiny (plus print styles); don't introduce a CSS framework.
 - **Shared UI primitives — use these, don't hand-roll.** To keep the app uniform:
-  - `components/AppShell.tsx` — the single shell **every** page renders (home, login, kiosk,
-    inventory, and all admin pages), over a centered container with an optional section header
-    (`title` + optional `action`). **Navigation is owned entirely by the shell** so it's identical
+  - `components/AppShell.tsx` — the single shell **every** page renders (login, kiosk, inventory,
+    and all admin pages), over a centered content container. **Navigation is owned entirely by the
+    shell** so it's identical
     everywhere: the top bar shows the "Stocky" brand (links home) + the primary section nav
     (Kiosk · Inventory · Admin) as a **`TabNav`** (the Radix Themes navigation primitive — real
     `<nav>` links with an active state, _not_ `Tabs`, which is for in-page panels). On `/admin/*`
@@ -33,9 +34,9 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
     plus the "Log out" button. Active state is derived from `usePathname`. **Don't render a
     page-name heading in a page** — the nav already shows where you are. A page puts its own action
     toolbar (search + "Add" buttons, in one `Flex justify="between"` row — don't stack them) in the
-    body; the only AppShell prop besides `containerSize` is `title`, used solely for a landing page
-    (home's "Welcome"). To add a destination, edit `MAIN_NAV` / `ADMIN_NAV` in `AppShell.tsx`; never
-    hand-roll a nav, a back-link, or a redundant page title in a page.
+    body; the only AppShell prop is `containerSize`. To add a destination, edit `MAIN_NAV` /
+    `ADMIN_NAV` in `AppShell.tsx`; never hand-roll a nav, a back-link, or a redundant page title in
+    a page.
   - `components/DataTable.tsx` — the one flat list table (`columns` + `rows`, optional row click).
     Don't write raw `<table>` markup.
   - `components/GroupedTable.tsx` — the one grouped/nested table: `GroupNode<T>[]` (group headers
