@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     git_commit: str = "unknown"
     git_version: str = "dev"
 
+    # Optional TrueType font for rasterized printer labels (services/label_raster.py).
+    # Empty = Pillow's embedded scalable font (Latin-1 coverage, zero files to ship).
+    label_font_path: str = ""
+
     @property
     def database_url(self) -> str:
         """Async SQLAlchemy URL, assembled from the POSTGRES_* components.
