@@ -12,6 +12,10 @@ COMPOSE := docker compose
 BACKEND  := backend
 FRONTEND := frontend
 
+# Build identity for the backend image (surfaces in Admin → Settings → Software update).
+export GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+export GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+
 # Only the makefile(s) — the `include .env` above also lands in MAKEFILE_LIST, and `help` must
 # not scan it for targets.
 HELP_SOURCES := $(filter %Makefile %.mk,$(MAKEFILE_LIST))

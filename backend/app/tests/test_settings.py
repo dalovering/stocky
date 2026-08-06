@@ -117,3 +117,15 @@ async def test_inactive_user_blocked_from_checkout_when_enabled(admin_client):
         "/api/kiosk/checkout", json={"item_id": item["id"], "user_id": user["id"]}
     )
     assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_version_endpoint_requires_admin(client):
+    assert (await client.get("/api/admin/version")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_version_endpoint(admin_client):
+    info = (await admin_client.get("/api/admin/version")).json()
+    assert set(info.keys()) == {"version", "commit"}
+    assert info["version"]  # "dev" outside a docker build

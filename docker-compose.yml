@@ -23,7 +23,12 @@ services:
       retries: 10
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        # Set by the Makefile (git describe / rev-parse); default when building bare.
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        GIT_VERSION: ${GIT_VERSION:-dev}
     restart: unless-stopped
     depends_on:
       db:
