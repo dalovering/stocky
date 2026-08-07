@@ -13,6 +13,7 @@ from app.models import Event, Item, User, UserStatus
 from app.schemas.inventory import EventRead, ItemRead
 from app.schemas.kiosk import (
     ItemActionRequest,
+    KioskConfig,
     ScanAction,
     ScanKind,
     ScanRequest,
@@ -40,6 +41,13 @@ async def _is_blocked(session: AsyncSession, user: User) -> bool:
 
 async def _item_by_barcode(session: AsyncSession, code: str) -> Item | None:
     return (await session.execute(select(Item).where(Item.barcode == code))).scalar_one_or_none()
+
+
+@router.get("/config", response_model=KioskConfig)
+async def kiosk_config(session: AsyncSession = Depends(get_session)) -> KioskConfig:
+    """The kiosk-safe settings subset (this router is unauthenticated — expose nothing else)."""
+    app_settings = await settings_svc.load_settings(session)
+    return KioskConfig(idle_timeout_seconds=app_settings.kiosk_idle_timeout_seconds)
 
 
 @router.post("/scan", response_model=ScanResponse)

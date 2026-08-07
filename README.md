@@ -61,6 +61,11 @@ make reset-admin-pass         # prompts for a new admin password
 Changing the password does not end sessions that are already signed in; rotate `JWT_SECRET` and
 restart to do that.
 
+**Admin → Settings** also holds the app's behavior knobs: the kiosk's inactivity auto-logout
+(seconds), an admin idle auto-logout (minutes, enforced in the browser on top of the absolute
+`JWT_EXPIRE_MINUTES` session limit), and the app time zone (IANA name) used for attendance days
+and spreadsheet export timestamps.
+
 ### Backup & restore
 
 ```bash

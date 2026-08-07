@@ -43,3 +43,13 @@ class ItemActionRequest(BaseModel):
     item_id: uuid.UUID
     user_id: uuid.UUID | None = None
     note: str | None = None
+
+
+class KioskConfig(BaseModel):
+    """The settings subset the unauthenticated kiosk may read.
+
+    A dedicated schema (rather than returning AppSettings) so that adding an app setting can
+    never leak it to the open LAN by accident — every kiosk-visible key is an explicit choice.
+    """
+
+    idle_timeout_seconds: int

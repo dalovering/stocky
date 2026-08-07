@@ -13,6 +13,7 @@ import type {
   ItemEvent,
   ItemStatus,
   ItemType,
+  KioskConfig,
   Page,
   ScanResponse,
   UserDetail,
@@ -224,6 +225,7 @@ export const api = {
   // ---- Kiosk ----
   scan: (barcode: string, active_user_id?: string | null) =>
     post<ScanResponse>("/api/kiosk/scan", { barcode, active_user_id: active_user_id ?? null }),
+  kioskConfig: () => get<KioskConfig>("/api/kiosk/config"),
   kioskUser: (id: string) => get<UserDetail>(`/api/kiosk/user/${id}`),
   kioskUserEvents: (id: string) => get<ItemEvent[]>(`/api/kiosk/user/${id}/events`),
   kioskCheckout: (item_id: string, user_id: string) =>

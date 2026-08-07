@@ -35,3 +35,8 @@ async def save_settings(session: AsyncSession, update: AppSettingsUpdate) -> App
 
 async def kiosk_blocks_inactive(session: AsyncSession) -> bool:
     return (await load_settings(session)).kiosk_block_inactive_users
+
+
+async def app_timezone(session: AsyncSession) -> str:
+    """The IANA zone for local-day bucketing (attendance) and export timestamps."""
+    return (await load_settings(session)).timezone
