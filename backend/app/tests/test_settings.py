@@ -21,6 +21,8 @@ DEFAULTS = {
 
 @pytest.mark.asyncio
 async def test_settings_default_and_update(admin_client):
+    # (printer_enabled False relies on the conftest fixture pinning PRINTER_DEVICE empty —
+    # its unset default follows the wiring, see test_printer_enabled_follows_the_device.)
     initial = (await admin_client.get("/api/admin/settings")).json()
     assert initial == DEFAULTS
 
@@ -32,6 +34,26 @@ async def test_settings_default_and_update(admin_client):
     # Persisted across reads.
     again = (await admin_client.get("/api/admin/settings")).json()
     assert again["kiosk_block_inactive_users"] is True
+
+
+@pytest.mark.asyncio
+async def test_printer_enabled_follows_the_device_until_set(admin_client, monkeypatch):
+    """Unset printer_enabled means "on when a printer is wired, off when not" — so
+    configuring PRINTER_DEVICE (make init-env) is enough without a Settings visit. An
+    explicit admin choice, either way, outlives the wiring default."""
+    from app.core.config import settings as app_config
+
+    monkeypatch.setattr(app_config, "printer_device", "/dev/usb/lp0")
+    assert (await admin_client.get("/api/admin/settings")).json()["printer_enabled"] is True
+
+    # The admin turning it OFF wins over the wired-so-on default...
+    await admin_client.patch("/api/admin/settings", json={"printer_enabled": False})
+    assert (await admin_client.get("/api/admin/settings")).json()["printer_enabled"] is False
+
+    # ...and an explicit ON survives the device later going away (state, not wiring).
+    await admin_client.patch("/api/admin/settings", json={"printer_enabled": True})
+    monkeypatch.setattr(app_config, "printer_device", "")
+    assert (await admin_client.get("/api/admin/settings")).json()["printer_enabled"] is True
 
 
 @pytest.mark.asyncio

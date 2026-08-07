@@ -7,6 +7,8 @@ from zoneinfo import available_timezones
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.core.config import settings as env
+
 
 @lru_cache(maxsize=1)
 def _known_zones() -> frozenset[str]:
@@ -32,7 +34,11 @@ class AppSettings(BaseModel):
     # Master switch: gates the print endpoints and all label-printer UI. The device path
     # itself is env config (PRINTER_DEVICE), not a setting — a DB-editable device path
     # would let any admin session point raw writes at an arbitrary file.
-    printer_enabled: bool = False
+    # UNSET means "follow the wiring": on when a PRINTER_DEVICE is configured, off when
+    # not — so configuring the printer (make init-env) is enough and no Settings visit is
+    # needed. Once an admin toggles it, the stored value wins. default_factory re-reads
+    # the env each load, so changing PRINTER_DEVICE updates the effective default.
+    printer_enabled: bool = Field(default_factory=lambda: bool(env.printer_device))
     # The loaded label stock, in mm. These describe the roll (a consumable — editable
     # here, no redeploy), while the head caps printable width at 48 mm regardless.
     label_width_mm: float = Field(default=50.0, gt=0, le=54)

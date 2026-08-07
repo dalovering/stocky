@@ -90,8 +90,9 @@ and Nelko/Marklife stock (third-party rolls often mis-feed). 50 × 30 mm is the 
    `COMPOSE_FILE=docker-compose.yml:docker-compose.printer.yml` (grants the backend container
    scoped access to `/dev/usb` — see that file for details).
 3. `make build && make start`, then `make printer-status` and `make printer-test`.
-4. In **Admin → Settings → Label printer**: check the status, print a test label, set the label
-   size to the loaded roll, and flip **Enable label printing**. The print buttons on Users and
+4. In **Admin → Settings → Label printer**: check the status, print a test label, and set the
+   label size to the loaded roll. Label printing enables itself once `PRINTER_DEVICE` is
+   configured (the switch is still there to turn it off). The print buttons on Users and
    Inventory now offer "Print to label printer" next to the PDF download.
 5. `make printer-scan-check b=<item barcode>` prints a real tag — scan it at the kiosk to verify
    end to end.
