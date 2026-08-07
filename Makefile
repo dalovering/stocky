@@ -39,8 +39,9 @@ build: ## Build all docker images
 	$(COMPOSE) build
 
 .PHONY: run
-run: ## Build and start the full stack (postgres 18 + backend + frontend)
+run: ## Build + start the full stack, then apply pending DB migrations
 	$(COMPOSE) up -d --build
+	$(MAKE) migrate
 
 .PHONY: up
 up: run ## Alias for `run`
@@ -88,7 +89,7 @@ update: ## Update the running stack to REF (branch, tag, or commit): make update
 	target=$$(git describe --tags --always "$(REF)^{commit}"); \
 	if [ "$(FORCE)" != "1" ]; then \
 		echo "This updates the running stack: $$current -> $$target"; \
-		echo "Containers are rebuilt and pending DB migrations are applied on start."; \
+		echo "Containers are rebuilt and pending DB migrations are applied."; \
 		echo "Take a 'make backup' first if you haven't."; \
 		echo; \
 		printf "Type 'update' to confirm: "; \
@@ -104,6 +105,9 @@ update: ## Update the running stack to REF (branch, tag, or commit): make update
 		git checkout --detach "$(REF)"; \
 	fi
 	$(COMPOSE) up -d --build
+	@# Recursive make re-reads the Makefile from the ref just checked out, so the
+	@# target ref's own migrate implementation is the one that runs.
+	$(MAKE) migrate
 
 .PHONY: logs
 logs: ## Tail logs from all services

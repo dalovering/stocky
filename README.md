@@ -41,7 +41,7 @@ engineering rules.
 
 ```bash
 make init-env                 # generate .env with random secrets
-make run                      # start postgres 18 + backend + frontend
+make run                      # start postgres 18 + backend + frontend; applies DB migrations
 make seed                     # load demo data (optional)
 ```
 
