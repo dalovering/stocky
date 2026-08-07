@@ -90,6 +90,9 @@ alembic/               # migrations (env.py wires the async engine + SQLModel me
   `core/config.py`) — a DB-editable device path would hand any admin session an
   arbitrary-file-write primitive. The *label stock* (width/height/gap/density) and the
   `printer_enabled` master switch live in `AppSettings` (admin-editable, no migration).
+  While `printer_enabled` is unset it follows the wiring — on when `PRINTER_DEVICE` is
+  configured, off otherwise — so setting up the device is enough; an explicit admin
+  toggle is stored and wins from then on.
 - **No printer in CI, no fakes:** tests drive the real job state machine through ptys with
   CRC-valid frames and assert on wire bytes; previews are decoded back to the row's barcode.
   Hardware-only checks live behind `make printer-probe/-status/-test/-scan-check`
