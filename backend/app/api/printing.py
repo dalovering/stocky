@@ -44,7 +44,9 @@ def _probe_state(status_report: printer_svc.ProbeReport) -> tuple[PrinterState, 
     if status_report.error is not None:
         return PrinterState.UNREACHABLE, status_report.error
     status = status_report.status
-    assert status is not None
+    if status is None:
+        # Device opened but answered nothing. It still prints — don't alarm the admin.
+        return PrinterState.CONNECTED, f"Ready to print. {printer_svc.MUTE_WARNING}"
     if status.out_of_paper:
         return PrinterState.NO_PAPER, "Load a roll and close the lid."
     if status.lid_open:

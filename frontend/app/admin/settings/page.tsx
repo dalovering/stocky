@@ -104,6 +104,8 @@ export default function SettingsPage() {
 
 const PRINTER_STATE_COLORS: Record<PrinterState, "green" | "red" | "orange" | "gray"> = {
   Ready: "green",
+  Connected: "green", // prints fine; just can't report paper/lid status
+
   "Not configured": "gray",
   "Not checked": "gray",
   Unreachable: "red",

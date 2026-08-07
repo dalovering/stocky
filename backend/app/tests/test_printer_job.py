@@ -30,7 +30,12 @@ def _frame(flags: int = 0, *, width_mm: int = 50, length_mm: int = 30) -> bytes:
 
 
 class PtyResponder:
-    """Reads the pty controller side; answers every status query with a canned frame."""
+    """Reads the pty controller side; answers every status query with a canned frame.
+
+    Pass an empty `frames` list to model a **mute** printer: queries are consumed and the
+    stream is drained (so writes never stall), but nothing is ever answered — which is how
+    the real PM220 behaves on both USB and Bluetooth.
+    """
 
     def __init__(self, frames: list[bytes]) -> None:
         self.controller, self.follower = os.openpty()
@@ -62,6 +67,8 @@ class PtyResponder:
             pending += chunk
             while tspl.STATUS_QUERY in pending:
                 _, pending = pending.split(tspl.STATUS_QUERY, 1)
+                if not self.frames:
+                    continue  # mute printer: consume the query, answer nothing
                 frame = self.frames[0] if len(self.frames) == 1 else self.frames.pop(0)
                 os.write(self.controller, frame)
 
@@ -158,15 +165,38 @@ def test_paper_out_mid_batch_stops_with_warning(monkeypatch, geometry) -> None:
         responder.close()
 
 
-def test_silent_device_maps_to_unavailable(monkeypatch, geometry) -> None:
-    controller, follower = os.openpty()  # nobody answers
+def test_mute_printer_still_prints_with_a_warning(monkeypatch, geometry) -> None:
+    """A printer that answers no query must still print — verified behavior on real PM220
+    hardware, which is mute on both USB and Bluetooth. Silence costs the pre-flight
+    checks, nothing more; it must never block a job."""
+    responder = PtyResponder([])  # drains the stream, never answers
     try:
-        _with_device(monkeypatch, os.ttyname(follower))
-        with pytest.raises(printer.PrinterUnavailable, match="did not respond"):
-            printer._run_job([_payload(geometry, 0)], geometry, 2.0, 10, 50.0)
+        _with_device(monkeypatch, responder.path)
+        payloads = [_payload(geometry, 1), _payload(geometry, 2)]
+        outcome = printer._run_job(payloads, geometry, 6.0, 10, 50.0)
+        assert (outcome.printed, outcome.requested) == (2, 2)
+        assert printer.MUTE_WARNING in outcome.warnings
+
+        # The labels really went out on the wire, not just accounted for.
+        responder.wait_for(outcome.bytes_sent)
+        assert bytes(responder.received).count(b"PRINT 1\r\n") == 2
     finally:
-        os.close(controller)
-        os.close(follower)
+        responder.close()
+
+
+def test_mute_printer_paces_batches_on_the_clock(monkeypatch, geometry) -> None:
+    """With no busy bit to poll, batches are paced by label travel time instead."""
+    responder = PtyResponder([])
+    try:
+        _with_device(monkeypatch, responder.path)
+        start = time.monotonic()
+        printer._run_job([_payload(geometry, n) for n in (1, 2, 3)], geometry, 6.0, 10, 50.0)
+        elapsed = time.monotonic() - start
+        # One 1.5s status timeout, then two inter-label gaps of 30mm/60mm/s + 0.3s = 0.8s.
+        # Nowhere near the 8s-per-label busy-poll cap a status-capable printer would use.
+        assert 2.0 < elapsed < 10.0, elapsed
+    finally:
+        responder.close()
 
 
 @pytest.mark.asyncio

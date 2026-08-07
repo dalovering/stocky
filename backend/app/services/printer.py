@@ -44,6 +44,13 @@ MAX_BATCH_LABELS = 50
 _STATUS_TIMEOUT = 1.5  # seconds to wait for an 18-byte status frame
 _BUSY_POLL_CAP = 8.0  # per-label ceiling on waiting for the busy bit to clear
 _POLL_INTERVAL = 0.25
+_WAKE_ATTEMPTS = 3  # ESC!o is cancel-pause; the vendor app repeats it, so so do we
+_FEED_MM_PER_S = 60.0  # rated feed speed, used to pace batches on a printer with no status
+
+MUTE_WARNING = (
+    "This printer does not report its status, so Stocky cannot check for paper or a "
+    "closed lid before printing."
+)
 
 
 class PrinterError(Exception):
@@ -111,10 +118,36 @@ def _read_status(transport: Transport) -> tspl.PrinterStatus:
         raise PrinterUnavailable(f"The label printer sent a garbled status frame: {exc}") from exc
 
 
-def _query_status(transport: Transport) -> tspl.PrinterStatus:
+def read_status_optional(transport: Transport) -> tspl.PrinterStatus | None:
+    """The status frame, or None if this printer has no usable status channel.
+
+    Many units in this family never answer queries: the USB printer interface can be
+    *unidirectional* (`bInterfaceProtocol=1`), which makes a read path physically
+    impossible, and the Bluetooth SPP channel can be equally mute. Printing works fine on
+    such a printer, so silence must never block a job — it only costs us the pre-flight
+    checks. Verified on real hardware: a PM220 that prints correctly answers neither
+    `ESC !o` nor `CONFIG?` on either transport.
+    """
+    try:
+        return _read_status(transport)
+    except PrinterUnavailable:
+        return None
+
+
+def _query_status(transport: Transport) -> tspl.PrinterStatus | None:
+    """Send the wake/cancel-pause command and read the status it may return.
+
+    `ESC !o` is TSPL's cancel-pause, which this firmware family answers with a short
+    status; the vendor app sends it repeatedly, so we retry a few times before concluding
+    the printer is mute.
+    """
     transport.drain_input()
-    transport.write(tspl.STATUS_QUERY)
-    return _read_status(transport)
+    for _ in range(_WAKE_ATTEMPTS):
+        transport.write(tspl.STATUS_QUERY)
+        status = read_status_optional(transport)
+        if status is not None:
+            return status
+    return None
 
 
 def _preflight(status: tspl.PrinterStatus, expected_width_mm: float) -> list[str]:
@@ -137,6 +170,16 @@ def _preflight(status: tspl.PrinterStatus, expected_width_mm: float) -> list[str
     return []
 
 
+def _pace_blind(height_mm: float) -> None:
+    """Wait out one label's travel when there's no status channel to poll.
+
+    With neither a completion ack nor a readable busy bit, the only flow control left is
+    the clock: hold off roughly as long as the label takes to feed at the rated speed, so
+    a long batch can't outrun the printer's input buffer.
+    """
+    time.sleep(min(height_mm / _FEED_MM_PER_S + 0.3, 3.0))
+
+
 def _wait_between_labels(transport: Transport, warnings: list[str]) -> bool:
     """Poll until the printer is no longer busy; False = stop the batch (paper out).
 
@@ -146,9 +189,8 @@ def _wait_between_labels(transport: Transport, warnings: list[str]) -> bool:
     """
     deadline = time.monotonic() + _BUSY_POLL_CAP
     while time.monotonic() < deadline:
-        try:
-            status = _query_status(transport)
-        except PrinterUnavailable:
+        status = _query_status(transport)
+        if status is None:
             time.sleep(_POLL_INTERVAL)
             continue
         if status.out_of_paper:
@@ -180,8 +222,13 @@ def _run_job(
         ) as transport:
             transport.drain_input()
             transport.write(header)
-            status = _read_status(transport)  # reply to the header's leading status query
-            warnings = _preflight(status, expected_width_mm)
+            # The header's leading ESC!o may or may not be answered; a mute printer still
+            # prints, so silence costs us the pre-flight checks and nothing else.
+            status = read_status_optional(transport)
+            if status is None:
+                mute, warnings = True, [MUTE_WARNING]
+            else:
+                mute, warnings = False, _preflight(status, expected_width_mm)
             bytes_sent = len(header)
             printed = 0
             for index, payload in enumerate(payloads):
@@ -194,7 +241,11 @@ def _run_job(
                 transport.write(block)
                 bytes_sent += len(block)
                 printed += 1
-                if index < len(payloads) - 1 and not _wait_between_labels(transport, warnings):
+                if index == len(payloads) - 1:
+                    continue
+                if mute:
+                    _pace_blind(geometry.height_mm)
+                elif not _wait_between_labels(transport, warnings):
                     warnings.append(f"Paper ran out after {printed} of {len(payloads)} labels.")
                     break
             return PrintOutcome(printed, len(payloads), bytes_sent, warnings)
@@ -208,7 +259,7 @@ def _run_probe() -> ProbeReport:
             _device(), settings.printer_transport, settings.printer_baud
         ) as transport:
             status = _query_status(transport)
-            battery = _query_battery(transport)
+            battery = _query_battery(transport) if status is not None else None
             return ProbeReport(status=status, battery_percent=battery, error=None)
     except TransportError as exc:
         return ProbeReport(status=None, battery_percent=None, error=str(exc))

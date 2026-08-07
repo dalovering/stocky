@@ -61,6 +61,7 @@ export type PrinterState =
   | "Not checked"
   | "Unreachable"
   | "Ready"
+  | "Connected"
   | "Out of paper"
   | "Lid open"
   | "Busy"

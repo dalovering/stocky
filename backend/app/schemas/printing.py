@@ -14,6 +14,9 @@ class PrinterState(StrEnum):
     NOT_CHECKED = "Not checked"  # configured, but this response didn't probe the device
     UNREACHABLE = "Unreachable"
     READY = "Ready"
+    # Opened fine but answers no queries — normal for this printer family (the USB printer
+    # interface can be unidirectional). It prints; we just can't check paper/lid first.
+    CONNECTED = "Connected"
     NO_PAPER = "Out of paper"
     LID_OPEN = "Lid open"
     BUSY = "Busy"
