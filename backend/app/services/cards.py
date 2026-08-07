@@ -22,7 +22,7 @@ from reportlab.graphics import renderPDF
 from reportlab.graphics.barcode import createBarcodeDrawing
 from reportlab.graphics.shapes import Drawing
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.units import inch
+from reportlab.lib.units import inch, mm
 from reportlab.pdfgen import canvas
 from sqlalchemy.ext.asyncio import AsyncSession
 from svglib.svglib import svg2rlg
@@ -40,7 +40,8 @@ class CardSpec:
     height: float
 
 
-ITEM_TAG = CardSpec("item_tag.svg", 1.46 * inch, 1.02 * inch)
+# 50 x 30 mm die-cut label stock (141.73 x 85.04 pt). Keep in sync with the SVG viewBox.
+ITEM_TAG = CardSpec("item_tag.svg", 50 * mm, 30 * mm)
 ID_CARD = CardSpec("user_id_card.svg", 3.375 * inch, 2.125 * inch)
 
 
