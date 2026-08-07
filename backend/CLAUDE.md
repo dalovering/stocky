@@ -21,12 +21,14 @@ app/
 ├── models/            # SQLModel tables + enums (the DB schema)
 ├── schemas/           # Pydantic request/response models (decoupled from tables)
 ├── services/          # status derivation, loan/admin events, barcode allocation, card PDFs (cards),
-│                       #   xlsx import/export (spreadsheet), app settings, admin password (admin_auth),
+│                       #   xlsx import/export (spreadsheet), restore-from-backup (restore — diff
+│                       #   plan + all-or-nothing apply), app settings, admin password (admin_auth),
 │                       #   serializers, shared queries, label printer (tspl + label_raster +
 │                       #   printer + printer_transport — see "Label printer" below)
 ├── templates/         # SVG card templates (item_tag.svg, user_id_card.svg) filled by services/cards
 ├── api/               # routers: auth, admin_users, admin_inventory, admin_history, admin_settings,
-│                       #   admin_export (full-DB xlsx), kiosk, inventory, labels, printing
+│                       #   admin_export (full-DB xlsx), admin_restore (preview + apply a backup),
+│                       #   kiosk, inventory, labels, printing
 │                       #   + deps + responses (shared pdf/png/xlsx helpers)
 ├── printer_cli.py     # ops CLI (status/test/item/job) — same service code as the API
 ├── seed.py            # demo data (`make seed`)
@@ -59,6 +61,11 @@ alembic/               # migrations (env.py wires the async engine + SQLModel me
 - **Enums as VARCHAR.** `Condition`/`EventType`/`ItemStatus`/`UserStatus` are stored as plain
   `VARCHAR` (`sa_type=String`), not native PG enums, so values change with no DB-type migration;
   validation happens via the `StrEnum` in the schemas.
+- **The full-database export is the backup format.** `services/restore.py` rebuilds the database
+  from it (rows matched by id, make-the-DB-match-the-file; columns absent from an older backup
+  preserve the live value). When you add a model field, add it to the export sheets in
+  `spreadsheet.py` in the same change — a field that isn't exported is a field a restore silently
+  loses. Unlike the best-effort row imports, restore is all-or-nothing in a single transaction.
 - **Schemas vs models.** Tables live in `models/`; never return raw tables from the API — go
   through a `schemas/` read model (enriched via `services/serialize.py`).
 - **Reserved words.** Table names are explicit (`users`, `groups`, ...) because `user`/`group` are

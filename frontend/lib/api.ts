@@ -18,6 +18,7 @@ import type {
   Page,
   PrinterInfo,
   PrintResult,
+  RestorePlan,
   ScanResponse,
   Timeframe,
   UserDetail,
@@ -254,8 +255,11 @@ export const api = {
   itemsTsplJob: (ids: string[]) => requestBlobPost("/api/admin/print/items/job.tspl", { ids }),
   usersTsplJob: (ids: string[]) => requestBlobPost("/api/admin/print/users/job.tspl", { ids }),
 
-  // ---- Admin: full-database export ----
+  // ---- Admin: full-database export + restore ----
   databaseXlsx: () => requestBlob("/api/admin/database.xlsx"),
+  // Same file both times: preview returns the diff plan, apply executes it.
+  restorePreview: (file: File) => postForm<RestorePlan>("/api/admin/restore", form(file)),
+  restoreApply: (file: File) => postForm<RestorePlan>("/api/admin/restore?apply=true", form(file)),
 
   // ---- Kiosk ----
   scan: (barcode: string, active_user_id?: string | null) =>

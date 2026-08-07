@@ -117,6 +117,37 @@ export interface ImportResult {
   errors: { row: number; message: string }[];
 }
 
+/** POST /api/admin/restore — the diff between an uploaded backup and the database.
+ * Detail lists are capped server-side; the *_count fields are always the full numbers. */
+export interface RestorePlan {
+  errors: { sheet: string; row: number | null; message: string }[];
+  entities: RestoreEntityPlan[];
+  settings: { key: string; old: string; new: string }[];
+  events_add: number;
+  events_remove: number;
+  events_relink: number;
+  events_unchanged: number;
+  applied: boolean;
+}
+
+export interface RestoreEntityPlan {
+  kind: "groups" | "item_types" | "users" | "items";
+  creates: RestoreRowChange[];
+  updates: RestoreRowChange[];
+  deletes: RestoreRowChange[];
+  create_count: number;
+  update_count: number;
+  delete_count: number;
+  unchanged: number;
+  truncated: boolean;
+}
+
+export interface RestoreRowChange {
+  id: string;
+  label: string;
+  fields: { field: string; old: string | null; new: string | null }[];
+}
+
 export interface Group {
   id: string;
   name: string;

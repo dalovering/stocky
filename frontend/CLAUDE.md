@@ -78,7 +78,9 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
 - **Admin tabs.** `/admin/{users,inventory}` are the CRUD + batch tables; `/admin/history` is the
   paginated event log; `/admin/attendance` renders the server-computed attendance report (grouped
   read-only table, URL-synced timeframe selector); `/admin/settings` toggles app config;
-  `/admin/export` downloads the multi-up card sheet and the full-database xlsx. Add a tab via
+  `/admin/export` downloads the multi-up card sheet and the full-database xlsx, and restores from
+  an uploaded backup (preview-diff dialog → destructive confirm; `api.restorePreview` /
+  `api.restoreApply` send the same file twice). Add a tab via
   `ADMIN_NAV` in `AppShell.tsx`.
 - **API access.** All backend calls go through the typed client in `lib/api.ts`; it sends cookies
   (`credentials: "include"`) for the admin session. Don't call `fetch` directly from components.
