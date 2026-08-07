@@ -126,9 +126,11 @@ def _decode_code128(runs: list[tuple[int, int]]) -> str:
     set_b = {value: char for char, value in code128.setb.items()}
     text, in_c = "", symbols[0] == 105
     for symbol in data:
-        if symbol == 99:
+        # 99/100 are only shift symbols in the *other* set: inside Code C, 99 is the
+        # literal digit pair "99" (and in B, 100 is FNC4) — don't eat those as switches.
+        if symbol == 99 and not in_c:
             in_c = True
-        elif symbol == 100:
+        elif symbol == 100 and in_c:
             in_c = False
         elif in_c:
             text += f"{symbol:02d}"
@@ -139,7 +141,17 @@ def _decode_code128(runs: list[tuple[int, int]]) -> str:
 
 @pytest.mark.parametrize(
     ("kind", "data"),
-    [(raster.LabelKind.ITEM_TAG, ITEM), (raster.LabelKind.USER_BADGE, USER)],
+    [
+        (raster.LabelKind.ITEM_TAG, ITEM),
+        (raster.LabelKind.USER_BADGE, USER),
+        # "99" pairs encode as Code C symbol 99, which doubles as the switch-to-C symbol
+        # in set B — a decoder that confuses the two eats every such pair. Regression for
+        # a flake that hit whenever the random allocator dealt a barcode containing 99.
+        (
+            raster.LabelKind.USER_BADGE,
+            CardData(title="Ada", subtitle="Room 12", extra=None, barcode="U99999999"),
+        ),
+    ],
 )
 def test_rendered_barcode_decodes_back(kind: raster.LabelKind, data: CardData) -> None:
     image = raster.render(kind, GEOM_50x30, data)
