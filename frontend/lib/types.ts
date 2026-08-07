@@ -15,7 +15,8 @@ export type EventType =
   | "discard"
   | "repair"
   | "mark_unavailable"
-  | "restore";
+  | "restore"
+  | "attendance";
 
 export const CONDITIONS: Condition[] = ["On order", "New", "Good", "Fair", "Worn", "Damaged"];
 
@@ -128,7 +129,8 @@ export interface Item {
 
 export interface ItemEvent {
   id: string;
-  item_id: string;
+  // Null for user-only events (attendance).
+  item_id: string | null;
   item_name: string | null;
   user_id: string | null;
   user_name: string | null;

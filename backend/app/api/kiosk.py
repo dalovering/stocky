@@ -71,6 +71,10 @@ async def scan(body: ScanRequest, session: AsyncSession = Depends(get_session)) 
                 action=ScanAction.UNKNOWN,
                 message=f"{user.name} is inactive and can't use the kiosk.",
             )
+        # The first ID scan of the (local) day doubles as an attendance record.
+        tz = await settings_svc.app_timezone(session)
+        if await event_svc.record_attendance(session, user.id, tz) is not None:
+            await session.commit()
         return ScanResponse(
             kind=ScanKind.USER,
             action=ScanAction.LOGIN,

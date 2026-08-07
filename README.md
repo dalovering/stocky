@@ -19,7 +19,8 @@ engineering rules.
   / Discarded) is derived from the event log; physical condition and a "needs review" flag are
   tracked separately.
 - **Check-in/out kiosk** — scan a student ID to log in, then scan items to check them in or out.
-  Works directly with USB barcode scanners — no need to click into an input box first.
+  Works directly with USB barcode scanners — no need to click into an input box first. A user's
+  first scan of the day is also recorded as attendance in their history.
 - **Inventory** — a read-only view for browsing items, locations, and quantities with search and
   filtering.
 

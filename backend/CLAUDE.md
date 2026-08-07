@@ -44,8 +44,13 @@ alembic/               # migrations (env.py wires the async engine + SQLModel me
   the latest of `damage_report`/`loss_report`/`discard`/`mark_unavailable`/`restore`. When you add an
   action that affects availability, append an `Event` and update `services/status.py` — don't add a
   status column. (Stored fields like `Item.condition`, `Item.needs_review`, and `User.status` are
-  physical/workflow state, not loan availability, so they live on the row.) **Filtering by status is
-  server-side:** `services/queries.py::item_read_query` is the *SQL twin* of `status.py` — it derives
+  physical/workflow state, not loan availability, so they live on the row.) **Attendance events
+  are user-only**: `event_type="attendance"` with `item_id NULL` (the only null-item event kind),
+  appended on a user's first kiosk scan of the local day (`services/events.py::record_attendance`,
+  day-bucketed in Postgres via `AT TIME ZONE` + the `timezone` setting). They never affect item
+  status. On user deletion, attendance rows are deleted and the rest of the user's events are
+  anonymized — always via `services/events.py::detach_user_history`, from every deletion path.
+  **Filtering by status is server-side:** `services/queries.py::item_read_query` is the *SQL twin* of `status.py` — it derives
   status in Postgres (DISTINCT ON over `events` + a CASE mirroring `combine_status`) so the list
   endpoints can filter/sort by the derived status. Keep the two in sync; `test_item_read_query.py`
   asserts they agree across event histories. If you change the status rules, change both.

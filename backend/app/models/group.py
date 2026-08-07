@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
@@ -21,4 +21,6 @@ class Group(SQLModel, table=True):
     parent_id: uuid.UUID | None = Field(default=None, foreign_key="groups.id", index=True)
     # Flexible permission flags applied to members of this group.
     permissions: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    # First day of the current semester — the "since semester start" attendance window.
+    semester_start: date | None = Field(default=None)
     created_at: datetime = Field(default_factory=utcnow, sa_column=timestamp_column())

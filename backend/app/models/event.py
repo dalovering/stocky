@@ -16,7 +16,8 @@ class Event(SQLModel, table=True):
     __tablename__ = "events"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    item_id: uuid.UUID = Field(foreign_key="items.id", index=True)
+    # The item involved. Null for user-only events (attendance), which have no item.
+    item_id: uuid.UUID | None = Field(default=None, foreign_key="items.id", index=True)
     # The user involved (e.g. who checked the item out). Null for admin/system events.
     user_id: uuid.UUID | None = Field(default=None, foreign_key="users.id", index=True)
     # Stored as VARCHAR (not a native PG enum) so event types can be added without a DB migration.

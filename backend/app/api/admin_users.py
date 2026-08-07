@@ -6,7 +6,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import ensure_unique_barcode, require_admin
@@ -19,6 +19,7 @@ from app.schemas.inventory import EventRead, IdList
 from app.schemas.user import UserBatchUpdate, UserCreate, UserDetail, UserRead, UserUpdate
 from app.services import barcode as barcode_svc
 from app.services import cards as cards_svc
+from app.services import events as event_svc
 from app.services import spreadsheet as spreadsheet_svc
 from app.services.queries import group_names, user_filter_query
 from app.services.serialize import loan_count, serialize_event, serialize_user_detail
@@ -220,8 +221,8 @@ async def batch_update_users(
 @router.post("/users/batch-delete", status_code=status.HTTP_204_NO_CONTENT)
 async def batch_delete_users(body: IdList, session: AsyncSession = Depends(get_session)) -> None:
     if body.ids:
-        # Events keep a user_id FK; null it out so deleting the user doesn't orphan history.
-        await session.execute(update(Event).where(Event.user_id.in_(body.ids)).values(user_id=None))
+        # Drop user-only attendance rows and anonymize the rest of their history first.
+        await event_svc.detach_user_history(session, body.ids)
         await session.execute(delete(User).where(User.id.in_(body.ids)))
         await session.commit()
 
@@ -257,6 +258,8 @@ async def delete_user(user_id: uuid.UUID, session: AsyncSession = Depends(get_se
     user = await session.get(User, user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found.")
+    # Same as batch delete: drop attendance rows, anonymize item history, then delete.
+    await event_svc.detach_user_history(session, [user.id])
     await session.delete(user)
     await session.commit()
 
