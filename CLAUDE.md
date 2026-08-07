@@ -64,9 +64,12 @@ conventions in a subtree, update that subtree's CLAUDE.md in the same commit.
 ```bash
 make init-env               # generate .env with openssl-random secrets (JWT signing key, DB password);
                             #   interactive runs also offer label-printer setup (device, lp gid, overlay)
-make run                    # docker-compose: build + start postgres 18 + backend + frontend
-make start                  # docker-compose start WITHOUT rebuilding (fast restart after `make build`)
-make migrate                # apply DB migrations
+make run                    # zero-to-working: creates .env if missing (init-env), builds + starts
+                            #   postgres 18 + backend + frontend, applies DB migrations; a fresh
+                            #   install then just needs /setup for the admin password (no seed)
+make start                  # docker-compose start WITHOUT rebuilding (fast restart after `make build`;
+                            #   never migrates — schema changes only happen via run/update/migrate)
+make migrate                # apply DB migrations by hand (an empty database is bootstrapped + stamped)
 make seed                   # load demo data so the kiosk works immediately
 make reset-admin-pass       # set a new admin password (prompts; recovery if locked out of /admin)
 make down                   # stop everything

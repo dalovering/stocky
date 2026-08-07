@@ -110,6 +110,14 @@ alembic/               # migrations (env.py wires the async engine + SQLModel me
 - Schema lives in `models/`. The baseline migration (`0001`) builds the schema from SQLModel
   metadata via `metadata.create_all`. It is the *starting point only* — never the mechanism for
   applying a later change.
+- **Fresh databases don't replay the chain.** Because `0001` is a live `create_all`, it always
+  builds the *current* schema — replaying later migrations on top would re-apply changes the
+  baseline already made (0002's `semester_start` broke every fresh install this way). So
+  `make migrate` runs `app/migrate.py`: an **empty** database gets `create_all` + `alembic stamp
+  head`; a **versioned** database gets a normal `alembic upgrade head`; tables without an
+  `alembic_version` are refused, not guessed at. Consequence: never write a migration that fresh
+  installs depend on (seed data, one-time backfills of derived state) — fresh installs skip the
+  chain entirely, so anything they need must come from the models or the app.
 - **Workflow for any model change:** edit `models/`, then `make migrate-create m="..."`,
   **read the generated revision** (autogenerate misses things — renames become drop+add, server
   defaults and constraints are often omitted, and `compare_type=True` catches column-type changes
