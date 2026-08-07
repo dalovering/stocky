@@ -121,9 +121,7 @@ async def list_users(
     status: Annotated[list[UserStatus] | None, Query()] = None,
     session: AsyncSession = Depends(get_session),
 ) -> list[UserRead]:
-    users = list(
-        (await session.execute(user_filter_query(q, status, group_id))).scalars().all()
-    )
+    users = list((await session.execute(user_filter_query(q, status, group_id))).scalars().all())
 
     groups = await group_names(session)
     out: list[UserRead] = []

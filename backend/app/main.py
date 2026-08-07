@@ -16,6 +16,7 @@ from app.api import (
     inventory,
     kiosk,
     labels,
+    printing,
 )
 from app.core.config import settings
 
@@ -43,6 +44,7 @@ app.include_router(admin_attendance.router)
 app.include_router(kiosk.router)
 app.include_router(inventory.router)
 app.include_router(labels.router)
+app.include_router(printing.router)
 
 
 @app.get("/health", tags=["meta"])

@@ -15,6 +15,22 @@ def pdf_response(content: bytes, filename: str) -> Response:
     )
 
 
+def binary_response(content: bytes, filename: str) -> Response:
+    return Response(
+        content=content,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def png_response(content: bytes, filename: str) -> Response:
+    return Response(
+        content=content,
+        media_type="image/png",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
 def xlsx_response(content: bytes, filename: str) -> Response:
     return Response(
         content=content,

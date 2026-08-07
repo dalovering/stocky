@@ -17,9 +17,10 @@ import {
 import { CheckIcon, CopyIcon } from "@radix-ui/react-icons";
 
 import { AppShell } from "@/components/AppShell";
+import { usePrinter } from "@/hooks/usePrinter";
 import { api, ApiError } from "@/lib/api";
 import { fetchMainHead, fetchTags, type GitHubBranchHead, type GitHubTag } from "@/lib/github";
-import type { AppSettings, VersionInfo } from "@/lib/types";
+import type { AppSettings, PrinterState, VersionInfo } from "@/lib/types";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -93,10 +94,168 @@ export default function SettingsPage() {
           />
         </Card>
         <TimezoneCard settings={settings} onSaved={setSettings} />
+        <LabelPrinterCard settings={settings} onUpdate={update} />
         <SoftwareUpdateCard />
         <ChangePasswordCard />
       </Flex>
     </AppShell>
+  );
+}
+
+const PRINTER_STATE_COLORS: Record<PrinterState, "green" | "red" | "orange" | "gray"> = {
+  Ready: "green",
+  Connected: "green", // prints fine; just can't report paper/lid status
+
+  "Not configured": "gray",
+  "Not checked": "gray",
+  Unreachable: "red",
+  "Out of paper": "orange",
+  "Lid open": "orange",
+  Busy: "orange",
+  Error: "red",
+};
+
+function LabelPrinterCard({
+  settings,
+  onUpdate,
+}: {
+  settings: AppSettings | null;
+  onUpdate: (patch: Partial<AppSettings>) => void;
+}) {
+  const { info, refresh } = usePrinter();
+  const [checking, setChecking] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function check() {
+    setChecking(true);
+    try {
+      await refresh(true); // live status probe (device I/O)
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  async function testPrint() {
+    setTestResult(null);
+    try {
+      const r = await api.printerTestPrint();
+      const warnings = r.warnings.length ? ` ${r.warnings.join(" ")}` : "";
+      setTestResult({ ok: true, message: `Printed a test label.${warnings}` });
+    } catch (e) {
+      setTestResult({
+        ok: false,
+        message: e instanceof ApiError ? e.message : "Test print failed.",
+      });
+    }
+  }
+
+  const probed = info?.state !== "Not checked" && info?.state !== "Not configured";
+
+  return (
+    <Card>
+      <Heading size="3" mb="3">
+        Label printer
+      </Heading>
+      <Flex direction="column" gap="4">
+        <Flex justify="between" align="center" gap="4">
+          <Flex direction="column" gap="1">
+            <Flex gap="2" align="center">
+              <Badge color={info ? PRINTER_STATE_COLORS[info.state] : "gray"}>
+                {info?.state ?? "…"}
+              </Badge>
+              <Text size="2" color="gray">
+                {info?.configured
+                  ? `${info.device} (${info.transport})`
+                  : "No printer device configured"}
+              </Text>
+            </Flex>
+            {info?.message && (
+              <Text size="1" color="gray">
+                {info.message}
+              </Text>
+            )}
+            {probed && info && (info.roll_width_mm || info.battery_percent != null) && (
+              <Text size="1" color="gray">
+                {info.roll_width_mm
+                  ? `Roll from size tag: ${info.roll_width_mm} × ${info.roll_length_mm} mm`
+                  : "Roll size tag unreadable"}
+                {info.battery_percent != null && ` · Battery ${info.battery_percent}%`}
+              </Text>
+            )}
+          </Flex>
+          <Flex gap="2" flexShrink="0">
+            <Button
+              size="1"
+              variant="soft"
+              disabled={!info?.configured || checking}
+              onClick={check}
+            >
+              {checking ? "Checking…" : "Check printer"}
+            </Button>
+            <Button size="1" variant="soft" disabled={!info?.configured} onClick={testPrint}>
+              Print test label
+            </Button>
+          </Flex>
+        </Flex>
+        {testResult && (
+          <Text size="1" color={testResult.ok ? "gray" : "red"}>
+            {testResult.message}
+          </Text>
+        )}
+
+        <Flex asChild justify="between" align="center" gap="4">
+          <label>
+            <Flex direction="column" gap="1">
+              <Text size="2" weight="medium">
+                Enable label printing
+              </Text>
+              <Text size="1" color="gray">
+                Adds “Print to label printer” to the print buttons on the Users and Inventory tabs.
+                The printer device itself is set with PRINTER_DEVICE in .env.
+              </Text>
+            </Flex>
+            <Switch
+              checked={settings?.printer_enabled ?? false}
+              disabled={settings === null || !info?.configured}
+              onCheckedChange={(checked) => onUpdate({ printer_enabled: checked })}
+            />
+          </label>
+        </Flex>
+
+        <NumberSettingField
+          label="Label width (mm)"
+          help="Width of the loaded roll. The print head covers at most 48 mm. Stocky barcodes need at least 40 mm."
+          min={20}
+          max={54}
+          value={settings?.label_width_mm ?? null}
+          onSave={(v) => onUpdate({ label_width_mm: v })}
+        />
+        <NumberSettingField
+          label="Label height (mm)"
+          help="Height of one die-cut label on the roll."
+          min={10}
+          max={200}
+          value={settings?.label_height_mm ?? null}
+          onSave={(v) => onUpdate({ label_height_mm: v })}
+        />
+        <NumberSettingField
+          label="Label gap (mm)"
+          help="Gap between labels on the roll — the printer's sensor uses it to find each label's edge, so measure it if labels drift or misalign. Nelko rolls are 6 mm."
+          min={0}
+          max={20}
+          value={settings?.label_gap_mm ?? null}
+          onSave={(v) => onUpdate({ label_gap_mm: v })}
+        />
+        <NumberSettingField
+          label="Print darkness (0–15)"
+          help="TSPL density, sent with every job. PM220 firmware ignores it (darkness is fixed; SPEED only changes feed rate) — kept for TSPL printers that honor it."
+          min={0}
+          max={15}
+          value={settings?.label_density ?? null}
+          onSave={(v) => onUpdate({ label_density: v })}
+        />
+      </Flex>
+    </Card>
   );
 }
 
@@ -119,8 +278,7 @@ function SoftwareUpdateCard() {
   }, []);
 
   const ref = target === "__custom__" ? pasted.trim() : target;
-  const upToDate =
-    version !== null && mainHead !== null && mainHead.sha.startsWith(version.commit);
+  const upToDate = version !== null && mainHead !== null && mainHead.sha.startsWith(version.commit);
   const commands = `make backup\nmake update REF=${ref || "<ref>"}`;
 
   async function copy() {
@@ -158,7 +316,10 @@ function SoftwareUpdateCard() {
               <Select.Trigger />
               <Select.Content>
                 <Select.Item value="main">
-                  main{mainHead ? ` (${mainHead.sha}${mainHead.date ? `, ${mainHead.date.slice(0, 10)}` : ""})` : ""}
+                  main
+                  {mainHead
+                    ? ` (${mainHead.sha}${mainHead.date ? `, ${mainHead.date.slice(0, 10)}` : ""})`
+                    : ""}
                 </Select.Item>
                 {(tags ?? []).map((t) => (
                   <Select.Item key={t.name} value={t.name}>

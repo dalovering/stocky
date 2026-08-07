@@ -121,9 +121,9 @@ async def test_read_query_status_matches_status_service(session):
         row = by_id[item.id]
         assert row.status == expected_status, f"{item.name}: status"
         assert row.holder_user_id == expected_holder, f"{item.name}: holder"
-        assert (row.checked_out_at is not None) == (
-            expected_status == ItemStatus.CHECKED_OUT
-        ), f"{item.name}: checked_out_at"
+        assert (row.checked_out_at is not None) == (expected_status == ItemStatus.CHECKED_OUT), (
+            f"{item.name}: checked_out_at"
+        )
 
 
 @pytest.mark.asyncio

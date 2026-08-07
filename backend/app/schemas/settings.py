@@ -28,6 +28,22 @@ class AppSettings(BaseModel):
     # (attendance day bucketing, spreadsheet export timestamps).
     timezone: str = "America/New_York"
 
+    # --- Label printer (Nelko PM220, TSPL2) ---
+    # Master switch: gates the print endpoints and all label-printer UI. The device path
+    # itself is env config (PRINTER_DEVICE), not a setting — a DB-editable device path
+    # would let any admin session point raw writes at an arbitrary file.
+    printer_enabled: bool = False
+    # The loaded label stock, in mm. These describe the roll (a consumable — editable
+    # here, no redeploy), while the head caps printable width at 48 mm regardless.
+    label_width_mm: float = Field(default=50.0, gt=0, le=54)
+    label_height_mm: float = Field(default=30.0, gt=0, le=200)
+    # Gap between die-cut labels (TSPL GAP) — the printer's gap sensor uses this to find the
+    # label edge, so a wrong value mis-registers or mis-feeds. 6 mm matches Nelko's own rolls
+    # (and the hardware capture the TSPL encoder is pinned to). Measure your stock if unsure.
+    label_gap_mm: float = Field(default=6.0, ge=0, le=20)
+    # Print darkness (TSPL DENSITY 0-15). 10 is the hardware-verified default.
+    label_density: int = Field(default=10, ge=0, le=15)
+
     @field_validator("timezone")
     @classmethod
     def _valid_iana_zone(cls, value: str) -> str:
@@ -50,6 +66,11 @@ class AppSettingsUpdate(BaseModel):
     kiosk_idle_timeout_seconds: int | None = Field(default=None, ge=0, le=3600)
     admin_idle_timeout_minutes: int | None = Field(default=None, ge=0, le=480)
     timezone: str | None = None
+    printer_enabled: bool | None = None
+    label_width_mm: float | None = Field(default=None, gt=0, le=54)
+    label_height_mm: float | None = Field(default=None, gt=0, le=200)
+    label_gap_mm: float | None = Field(default=None, ge=0, le=20)
+    label_density: int | None = Field(default=None, ge=0, le=15)
 
     @field_validator("timezone")
     @classmethod

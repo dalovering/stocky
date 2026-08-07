@@ -11,6 +11,11 @@ DEFAULTS = {
     "kiosk_idle_timeout_seconds": 60,
     "admin_idle_timeout_minutes": 15,
     "timezone": "America/New_York",
+    "printer_enabled": False,
+    "label_width_mm": 50.0,
+    "label_height_mm": 30.0,
+    "label_gap_mm": 6.0,
+    "label_density": 10,
 }
 
 
@@ -56,9 +61,37 @@ async def test_settings_rejects_bad_values(admin_client):
         {"kiosk_idle_timeout_seconds": -1},
         {"kiosk_idle_timeout_seconds": 3601},
         {"admin_idle_timeout_minutes": 481},
+        {"label_width_mm": 60},  # wider than the printer's 54 mm media limit
+        {"label_width_mm": 0},
+        {"label_height_mm": 0},
+        {"label_gap_mm": -1},
+        {"label_density": 16},
     ):
         resp = await admin_client.patch("/api/admin/settings", json=bad_patch)
         assert resp.status_code == 422, bad_patch
+
+
+@pytest.mark.asyncio
+async def test_printer_settings_roundtrip(admin_client):
+    updated = (
+        await admin_client.patch(
+            "/api/admin/settings",
+            json={
+                "printer_enabled": True,
+                "label_width_mm": 40,
+                "label_height_mm": 30,
+                "label_gap_mm": 6,
+                "label_density": 12,
+            },
+        )
+    ).json()
+    assert updated["printer_enabled"] is True
+    assert updated["label_width_mm"] == 40
+    assert updated["label_gap_mm"] == 6
+    assert updated["label_density"] == 12
+
+    again = (await admin_client.get("/api/admin/settings")).json()
+    assert again == updated
 
 
 @pytest.mark.asyncio

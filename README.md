@@ -24,6 +24,9 @@ engineering rules.
   first scan of the day is also recorded as attendance in their history.
 - **Inventory** — a read-only view for browsing items, locations, and quantities with search and
   filtering.
+- **Label printing** (optional) — item tags and compact user badges print directly to a **Nelko
+  PM220** thermal label printer (TSPL2 over USB or Bluetooth serial) from the same Users/Inventory
+  print buttons, alongside the PDF downloads. See [Label printer](#label-printer-nelko-pm220).
 
 ## Tech stack
 
@@ -67,8 +70,44 @@ restart to do that.
 
 **Admin → Settings** also holds the app's behavior knobs: the kiosk's inactivity auto-logout
 (seconds), an admin idle auto-logout (minutes, enforced in the browser on top of the absolute
-`JWT_EXPIRE_MINUTES` session limit), and the app time zone (IANA name) used for attendance days
-and spreadsheet export timestamps.
+`JWT_EXPIRE_MINUTES` session limit), the app time zone (IANA name) used for attendance days
+and spreadsheet export timestamps, and the label-printer card (enable switch, label stock size,
+darkness, status check, test print).
+
+### Label printer (Nelko PM220)
+
+Stocky can print item tags and user badges straight to a Nelko PM220 (a TSPL2 thermal printer,
+203 dpi, 48 mm max print width). Use **40 mm-wide or wider rolls** — a Stocky barcode needs 33 mm —
+and Nelko/Marklife stock (third-party rolls often mis-feed). 50 × 30 mm is the default.
+
+**Raspberry Pi over USB (recommended):**
+
+1. Plug the printer in and power it on, then `make printer-probe` — you should see
+   `/dev/usb/lp0` and an IEEE-1284 id mentioning `TSPL`. If CUPS is installed it steals the
+   device: `sudo systemctl disable --now cups cups-browsed`.
+2. In `.env`, set `PRINTER_DEVICE=/dev/usb/lp0`, `PRINTER_GID` to the host `lp` gid
+   (`getent group lp | cut -d: -f3`), and
+   `COMPOSE_FILE=docker-compose.yml:docker-compose.printer.yml` (grants the backend container
+   scoped access to `/dev/usb` — see that file for details).
+3. `make build && make start`, then `make printer-status` and `make printer-test`.
+4. In **Admin → Settings → Label printer**: check the status, print a test label, set the label
+   size to the loaded roll, and flip **Enable label printing**. The print buttons on Users and
+   Inventory now offer "Print to label printer" next to the PDF download.
+5. `make printer-scan-check b=<item barcode>` prints a real tag — scan it at the kiosk to verify
+   end to end.
+
+If USB data turns out to be disabled on the unit, fall back to Bluetooth SPP: pair + `rfcomm bind`,
+set `PRINTER_DEVICE=/dev/rfcomm0`, and swap the device mapping as described in
+`docker-compose.printer.yml`.
+
+**macOS (development, `make dev`):** macOS has no raw USB printer node, so pair the printer over
+**Bluetooth** instead (System Settings → Bluetooth; it appears as a serial port). Then in `.env`
+set `PRINTER_DEVICE=/dev/cu.<name>` (see `ls /dev/cu.*`) and use `make dev-printer-status` /
+`make dev-printer-test`. Alternatively `python -m app.printer_cli job out.tspl` writes a raw job
+you can send through a raw CUPS queue (`lp -o raw`) over USB.
+
+The printer never blocks the rest of the app: with `PRINTER_DEVICE` unset or the setting disabled,
+the UI is exactly the PDF-only app. Batches are capped at 50 labels per print.
 
 ### Updating
 

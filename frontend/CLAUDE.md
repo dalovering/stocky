@@ -117,6 +117,16 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
   (`api.usersIdCardsPdf` / `api.itemsTagsPdf`). Use `downloadBlob(blob, filename)` from `lib/api`
   to trigger the download; binary responses go through `requestBlob` (GET) / `requestBlobPost`
   (POST), not `request`.
+- **Thermal label printer (Nelko PM220).** `hooks/usePrinter.ts` fetches the cheap
+  `api.printerInfo()` once per page; its `available` flag (configured **and** enabled) gates every
+  printer affordance — when false the UI is byte-identical to the PDF-only app, so never render a
+  printer control unconditionally. When available, the existing print spots grow a destination
+  menu (`components/PrintMenu.tsx`'s `PrintMenuButton`, `RowAction.menu` on `GroupedTable`,
+  `SelectionBar.onPrintToPrinter`): print to label printer (`api.printItems` / `printItemTypes` /
+  `printUsers` / `printGroups`, all IdList POSTs), download PDF, or preview the exact raster
+  (`api.itemLabelPreview` / `userLabelPreview` PNGs). Print results (incl. partial-failure
+  warnings) go in the page's green callout. Printer config lives on the Settings page's Label
+  printer card (status probe via `api.printerInfo(true)`, `api.printerTestPrint`).
 - The admin **Export** page (`app/admin/export/page.tsx`) downloads the multi-up US-Letter sheet
   (every ID card, then every item tag) via `api.labelsPdf()`.
 - `.no-print` in `globals.css` hides chrome from any browser print; the card PDFs don't rely on it.
