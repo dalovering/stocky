@@ -39,7 +39,8 @@ build: ## Build all docker images
 	$(COMPOSE) build
 
 .PHONY: run
-run: ## Build + start the full stack, then apply pending DB migrations
+run: ## Zero-to-working: create .env if missing, build + start the stack, apply DB migrations
+	@[ -f .env ] || $(MAKE) init-env
 	$(COMPOSE) up -d --build
 	$(MAKE) migrate
 

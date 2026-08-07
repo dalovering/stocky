@@ -40,8 +40,8 @@ engineering rules.
 ## Quick start
 
 ```bash
-make init-env                 # generate .env with random secrets
-make run                      # start postgres 18 + backend + frontend; applies DB migrations
+make run                      # everything: .env (created if missing), postgres 18 + backend +
+                              #   frontend, DB migrations — then set the admin password at /setup
 make seed                     # load demo data (optional)
 ```
 
