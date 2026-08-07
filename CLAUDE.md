@@ -62,7 +62,8 @@ conventions in a subtree, update that subtree's CLAUDE.md in the same commit.
 ## How to run
 
 ```bash
-make init-env               # generate .env with openssl-random secrets (JWT signing key, DB password)
+make init-env               # generate .env with openssl-random secrets (JWT signing key, DB password);
+                            #   interactive runs also offer label-printer setup (device, lp gid, overlay)
 make run                    # zero-to-working: creates .env if missing (init-env), builds + starts
                             #   postgres 18 + backend + frontend, applies DB migrations; a fresh
                             #   install then just needs /setup for the admin password (no seed)

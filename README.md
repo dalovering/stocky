@@ -85,8 +85,9 @@ and Nelko/Marklife stock (third-party rolls often mis-feed). 50 × 30 mm is the 
 1. Plug the printer in and power it on, then `make printer-probe` — you should see
    `/dev/usb/lp0` and an IEEE-1284 id mentioning `TSPL`. If CUPS is installed it steals the
    device: `sudo systemctl disable --now cups cups-browsed`.
-2. In `.env`, set `PRINTER_DEVICE=/dev/usb/lp0`, `PRINTER_GID` to the host `lp` gid
-   (`getent group lp | cut -d: -f3`), and
+2. On a fresh install, `make init-env` asks about the printer and writes all of this for
+   you. For an existing `.env`, set `PRINTER_DEVICE=/dev/usb/lp0`, `PRINTER_GID` to the host
+   `lp` gid (`getent group lp | cut -d: -f3`), and
    `COMPOSE_FILE=docker-compose.yml:docker-compose.printer.yml` (grants the backend container
    scoped access to `/dev/usb` — see that file for details).
 3. `make build && make start`, then `make printer-status` and `make printer-test`.

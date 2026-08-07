@@ -31,7 +31,7 @@ help: ## Show this help
 # Docker-compose (deployment / full stack)
 # ---------------------------------------------------------------------------
 .PHONY: init-env
-init-env: ## Generate a local .env with openssl-random secrets (won't overwrite existing)
+init-env: ## Generate .env with openssl-random secrets + optional label-printer setup (won't overwrite existing)
 	./scripts/gen-env.sh
 
 .PHONY: build
