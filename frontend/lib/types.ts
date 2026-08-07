@@ -73,6 +73,33 @@ export interface Group {
   name: string;
   parent_id: string | null;
   permissions: Record<string, unknown>;
+  semester_start: string | null;
+}
+
+export type Timeframe = "today" | "week" | "semester";
+
+export interface AttendanceUserRow {
+  user_id: string;
+  name: string;
+  barcode: string;
+  present: string[]; // ISO dates, subset of the group's scheduled days
+  present_count: number;
+  absent_count: number;
+}
+
+export interface AttendanceGroup {
+  group_id: string | null; // null = the "No group" bucket
+  group_name: string;
+  semester_start: string | null;
+  days: string[]; // scheduled days, ascending
+  users: AttendanceUserRow[];
+  children: AttendanceGroup[];
+}
+
+export interface AttendanceReport {
+  timeframe: Timeframe;
+  timezone: string;
+  groups: AttendanceGroup[];
 }
 
 export interface GroupTree extends Group {

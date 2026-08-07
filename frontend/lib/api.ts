@@ -3,6 +3,7 @@
 
 import type {
   AppSettings,
+  AttendanceReport,
   AuthStatus,
   Condition,
   Group,
@@ -16,6 +17,7 @@ import type {
   KioskConfig,
   Page,
   ScanResponse,
+  Timeframe,
   UserDetail,
   UserRead,
   UserStatus,
@@ -221,6 +223,10 @@ export const api = {
     date_to?: string;
     q?: string;
   }) => requestBlob(`/api/admin/events.xlsx${query(params)}`),
+
+  // ---- Admin: attendance ----
+  attendance: (timeframe: Timeframe) =>
+    get<AttendanceReport>(`/api/admin/attendance?timeframe=${timeframe}`),
 
   // ---- Admin: settings ----
   getSettings: () => get<AppSettings>("/api/admin/settings"),

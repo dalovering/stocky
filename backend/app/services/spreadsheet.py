@@ -48,7 +48,7 @@ EVENT_HEADERS = [
     "note",
 ]
 # Export-only sheets of the full-database workbook.
-GROUP_HEADERS = ["id", "name", "parent", "created_at"]
+GROUP_HEADERS = ["id", "name", "parent", "semester_start", "created_at"]
 ITEM_TYPE_HEADERS = [
     "id",
     "name",
@@ -412,6 +412,7 @@ async def full_workbook(session: AsyncSession) -> bytes:
             str(g.id),
             g.name,
             names_by_id.get(g.parent_id, "") if g.parent_id else "",
+            g.semester_start,
             g.created_at.astimezone(tz).replace(tzinfo=None),
         ]
         for g in groups

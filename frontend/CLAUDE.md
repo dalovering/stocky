@@ -29,7 +29,7 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
     (Kiosk · Inventory · Admin) as a **`TabNav`** (the Radix Themes navigation primitive — real
     `<nav>` links with an active state, _not_ `Tabs`, which is for in-page panels). On `/admin/*`
     the shell auto-renders a centered **`SegmentedControl`** sub-nav (Users · Inventory · History ·
-    Export · Settings) —
+    Attendance · Export · Settings) —
     the pill/segmented look deliberately differentiates the second nav level from the top tabs.
     While an admin session is active (per `useAuth()`), the shell shades the top bar **red** with
     an "Admin" badge on *every* page (kiosk included) and shows the "Log out" button — logging out
@@ -76,8 +76,10 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
     show all, since their option set is dynamic) and `renderOption` for labels (e.g. the
     `__none__` location sentinel → "(No location)").
 - **Admin tabs.** `/admin/{users,inventory}` are the CRUD + batch tables; `/admin/history` is the
-  paginated event log; `/admin/settings` toggles app config; `/admin/export` downloads the multi-up
-  card sheet. Add a tab via `ADMIN_NAV` in `AppShell.tsx`.
+  paginated event log; `/admin/attendance` renders the server-computed attendance report (grouped
+  read-only table, URL-synced timeframe selector); `/admin/settings` toggles app config;
+  `/admin/export` downloads the multi-up card sheet and the full-database xlsx. Add a tab via
+  `ADMIN_NAV` in `AppShell.tsx`.
 - **API access.** All backend calls go through the typed client in `lib/api.ts`; it sends cookies
   (`credentials: "include"`) for the admin session. Don't call `fetch` directly from components.
   Keep `lib/types.ts` in sync with the backend `app/schemas`.

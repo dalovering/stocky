@@ -31,6 +31,7 @@ const ADMIN_NAV = [
   { href: "/admin/users", label: "Users & Groups" },
   { href: "/admin/inventory", label: "Inventory" },
   { href: "/admin/history", label: "History" },
+  { href: "/admin/attendance", label: "Attendance" },
   { href: "/admin/export", label: "Export" },
   { href: "/admin/settings", label: "Settings" },
 ];
