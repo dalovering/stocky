@@ -34,6 +34,10 @@ help: ## Show this help
 init-env: ## Generate .env with openssl-random secrets + optional label-printer setup (won't overwrite existing)
 	./scripts/gen-env.sh
 
+.PHONY: printer-env
+printer-env: ## Add label-printer settings to an EXISTING .env (interactive; never touches secrets)
+	./scripts/gen-env.sh --printer
+
 .PHONY: build
 build: ## Build all docker images
 	$(COMPOSE) build

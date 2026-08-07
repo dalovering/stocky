@@ -86,8 +86,9 @@ and Nelko/Marklife stock (third-party rolls often mis-feed). 50 × 30 mm is the 
    `/dev/usb/lp0` and an IEEE-1284 id mentioning `TSPL`. If CUPS is installed it steals the
    device: `sudo systemctl disable --now cups cups-browsed`.
 2. On a fresh install, `make init-env` asks about the printer and writes all of this for
-   you. For an existing `.env`, set `PRINTER_DEVICE=/dev/usb/lp0`, `PRINTER_GID` to the host
-   `lp` gid (`getent group lp | cut -d: -f3`), and
+   you; on an existing install, `make printer-env` runs the same wizard against your current
+   `.env` (secrets untouched). Doing it by hand instead: set `PRINTER_DEVICE=/dev/usb/lp0`,
+   `PRINTER_GID` to the host `lp` gid (`getent group lp | cut -d: -f3`), and
    `COMPOSE_FILE=docker-compose.yml:docker-compose.printer.yml` (grants the backend container
    scoped access to `/dev/usb` — see that file for details).
 3. `make build && make start`, then `make printer-status` and `make printer-test`.
@@ -112,6 +113,9 @@ The printer never blocks the rest of the app: with `PRINTER_DEVICE` unset or the
 the UI is exactly the PDF-only app. Batches are capped at 50 labels per print.
 
 ### Updating
+
+**Step-by-step upgrade instructions live in [UPGRADING.md](UPGRADING.md)** — including the
+0.1.0 → 0.2.0 path and printer setup on an existing install.
 
 **Admin → Settings → Software update** shows the running version and the update targets published
 on GitHub (the `main` branch, release tags, or a pasted commit hash) with the exact commands to

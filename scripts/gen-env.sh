@@ -2,6 +2,9 @@
 # Generate a local .env from .env.example, filling in strong random secrets with openssl,
 # then offer to configure the Nelko PM220 label printer (interactive runs only).
 # Safe to run repeatedly: it will NOT overwrite an existing .env unless --force is given.
+#
+#   --printer   skip generation entirely and run ONLY the printer wizard, appending to
+#               the EXISTING .env (make printer-env). Never touches secrets.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -10,43 +13,59 @@ cd "$(dirname "$0")/.."
 ENV_FILE="${ENV_FILE:-.env}"
 EXAMPLE_FILE=".env.example"
 FORCE=0
-[[ "${1:-}" == "--force" || "${1:-}" == "-f" ]] && FORCE=1
+PRINTER_ONLY=0
+case "${1:-}" in
+  --force | -f) FORCE=1 ;;
+  --printer) PRINTER_ONLY=1 ;;
+esac
 
-if [[ ! -f "$EXAMPLE_FILE" ]]; then
-  echo "error: $EXAMPLE_FILE not found" >&2
-  exit 1
-fi
-
-if [[ -f "$ENV_FILE" && "$FORCE" -ne 1 ]]; then
-  echo "$ENV_FILE already exists; refusing to overwrite. Re-run with --force to replace it." >&2
-  echo "(To add the label printer to an existing .env, see README 'Label printer'.)" >&2
-  exit 1
-fi
-
-# Generate secrets.
-JWT_SECRET="$(openssl rand -base64 48 | tr -d '\n')"
-DB_PASSWORD="$(openssl rand -base64 18 | tr -d '\n/+=' | cut -c1-20)"
-
-# Start from the example, then substitute the sensitive / derived values.
-cp "$EXAMPLE_FILE" "$ENV_FILE"
-
-# Portable in-place edit (works on both macOS/BSD and GNU sed).
-sed_inplace() {
-  if sed --version >/dev/null 2>&1; then
-    sed -i "$1" "$ENV_FILE"      # GNU
-  else
-    sed -i '' "$1" "$ENV_FILE"   # BSD/macOS
+if [[ "$PRINTER_ONLY" -eq 1 ]]; then
+  if [[ ! -f "$ENV_FILE" ]]; then
+    echo "error: $ENV_FILE does not exist — run 'make init-env' (or 'make run') first." >&2
+    exit 1
   fi
-}
+  if [[ ! -t 0 && -z "${GEN_ENV_PROMPT:-}" ]]; then
+    echo "error: --printer is interactive; run it from a terminal." >&2
+    exit 1
+  fi
+else
+  if [[ ! -f "$EXAMPLE_FILE" ]]; then
+    echo "error: $EXAMPLE_FILE not found" >&2
+    exit 1
+  fi
+  if [[ -f "$ENV_FILE" && "$FORCE" -ne 1 ]]; then
+    echo "$ENV_FILE already exists; refusing to overwrite. Re-run with --force to replace it." >&2
+    echo "(To add the label printer to an existing .env: make printer-env)" >&2
+    exit 1
+  fi
+fi
 
-# POSTGRES_PASSWORD is the single source of truth — the backend builds the DB URL from it,
-# so there is nothing else to keep in sync.
-sed_inplace "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${DB_PASSWORD}|"
-sed_inplace "s|^JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|"
+if [[ "$PRINTER_ONLY" -ne 1 ]]; then
+  # Generate secrets.
+  JWT_SECRET="$(openssl rand -base64 48 | tr -d '\n')"
+  DB_PASSWORD="$(openssl rand -base64 18 | tr -d '\n/+=' | cut -c1-20)"
 
-echo "Wrote $ENV_FILE with freshly generated secrets."
-echo "(Keep .env private — it is git-ignored.)"
-echo "The admin password isn't set here — the app will prompt you to create one on first launch."
+  # Start from the example, then substitute the sensitive / derived values.
+  cp "$EXAMPLE_FILE" "$ENV_FILE"
+
+  # Portable in-place edit (works on both macOS/BSD and GNU sed).
+  sed_inplace() {
+    if sed --version >/dev/null 2>&1; then
+      sed -i "$1" "$ENV_FILE"      # GNU
+    else
+      sed -i '' "$1" "$ENV_FILE"   # BSD/macOS
+    fi
+  }
+
+  # POSTGRES_PASSWORD is the single source of truth — the backend builds the DB URL from it,
+  # so there is nothing else to keep in sync.
+  sed_inplace "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${DB_PASSWORD}|"
+  sed_inplace "s|^JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|"
+
+  echo "Wrote $ENV_FILE with freshly generated secrets."
+  echo "(Keep .env private — it is git-ignored.)"
+  echo "The admin password isn't set here — the app will prompt you to create one on first launch."
+fi
 
 # ---------------------------------------------------------------------------
 # Optional: label printer (Nelko PM220).
@@ -70,17 +89,18 @@ append_env() {
   } >>"$ENV_FILE"
 }
 
-if [[ ! -t 0 && -z "${GEN_ENV_PROMPT:-}" ]]; then
+if [[ "$PRINTER_ONLY" -ne 1 ]]; then
+  if [[ ! -t 0 && -z "${GEN_ENV_PROMPT:-}" ]]; then
+    echo
+    echo "(Non-interactive run: skipping label-printer setup — 'make printer-env' adds it later.)"
+    exit 0
+  fi
   echo
-  echo "(Non-interactive run: skipping label-printer setup — see README 'Label printer'.)"
-  exit 0
-fi
-
-echo
-answer="$(prompt "Set up the Nelko PM220 label printer now? [y/N] " n)"
-if [[ "$(lower "$answer")" != y* ]]; then
-  echo "Skipped. You can set it up any time — see README 'Label printer'."
-  exit 0
+  answer="$(prompt "Set up the Nelko PM220 label printer now? [y/N] " n)"
+  if [[ "$(lower "$answer")" != y* ]]; then
+    echo "Skipped. You can set it up any time with: make printer-env"
+    exit 0
+  fi
 fi
 
 case "${GEN_ENV_OS:-$(uname -s)}" in
