@@ -54,7 +54,9 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
     `components/ImportExportButtons.tsx` (Download `.xlsx` + Import), `components/ImportResultDialog.tsx`,
     and `components/MultiSelectFilter.tsx` (the multi-value checkbox dropdown used for *every* enum
     filter — don't build single-value enum `Select` filters). Pass `selectable` +
-    `selectedIds`/`onToggle`/`onToggleMany` to `GroupedTable` to enable checkboxes.
+    `selectedIds`/`onToggle`/`onToggleMany` to `GroupedTable` to enable checkboxes; that includes
+    per-group select-alls and a master select-all in the header (which selects the currently
+    filtered rows — filtering is server-side, so that's exactly what's on screen).
   - **Filtering (server-side) — use the shared filter bar, don't hand-roll.** Filtering is done by
     the backend via parameterized list endpoints (multi-valued `status`/`condition`/`type_id`/
     `location` etc.) — including the *derived* item status — not in the browser. The standard UI is
