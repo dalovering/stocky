@@ -17,10 +17,26 @@ from sqlmodel import SQLModel
 from testcontainers.postgres import PostgresContainer
 
 import app.models  # noqa: F401  (register tables on metadata)
+from app.core.config import settings as app_config
 from app.core.db import get_session
 from app.main import app
 
 TEST_ADMIN_PASSWORD = "test-admin-password"
+
+
+@pytest.fixture(autouse=True)
+def _printer_env_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin printer config to the class defaults for every test.
+
+    `Settings` reads `.env`, so a developer with a real printer configured
+    (PRINTER_DEVICE=/dev/usb/lp0) would otherwise fail the tests that assume an
+    unconfigured printer. Tests that need a device set one explicitly via monkeypatch,
+    which happens after this and wins.
+    """
+    monkeypatch.setattr(app_config, "printer_device", "")
+    monkeypatch.setattr(app_config, "printer_transport", "auto")
+    monkeypatch.setattr(app_config, "printer_baud", 115200)
+    monkeypatch.setattr(app_config, "printer_bitmap_mode", 1)
 
 
 @pytest.fixture(scope="session")
