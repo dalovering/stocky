@@ -12,8 +12,9 @@ engineering rules.
 - **Administration** (admin-password protected — set up in-app on first launch, changeable from
   Settings) — five tabs: **Users & Groups** and **Inventory**
   (CRUD over nestable groups, item types, and items, with multi-select batch edits and `.xlsx`
-  import/export), **History** (a filterable, paginated event log), **Export** (printable ID-card /
-  item-tag PDFs), and **Settings**. Item availability (Checked out / Available / Unavailable / Lost
+  import/export), **History** (a filterable, paginated event log, downloadable as `.xlsx` — for
+  one user, one item, or everything), **Export** (printable ID-card / item-tag PDFs), and
+  **Settings**. Item availability (Checked out / Available / Unavailable / Lost
   / Discarded) is derived from the event log; physical condition and a "needs review" flag are
   tracked separately.
 - **Check-in/out kiosk** — scan a student ID to log in, then scan items to check them in or out.

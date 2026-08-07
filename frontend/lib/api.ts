@@ -213,6 +213,14 @@ export const api = {
     limit?: number;
     offset?: number;
   }) => get<Page<ItemEvent>>(`/api/admin/events${query(params)}`),
+  eventsXlsx: (params?: {
+    event_type?: string;
+    user_id?: string;
+    item_id?: string;
+    date_from?: string;
+    date_to?: string;
+    q?: string;
+  }) => requestBlob(`/api/admin/events.xlsx${query(params)}`),
 
   // ---- Admin: settings ----
   getSettings: () => get<AppSettings>("/api/admin/settings"),

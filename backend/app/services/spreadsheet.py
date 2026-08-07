@@ -10,7 +10,9 @@ openpyxl is pure-Python (Pi-friendly); we stream with write_only/read_only to ke
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from io import BytesIO
+from zoneinfo import ZoneInfo
 
 from openpyxl import Workbook, load_workbook
 from sqlalchemy import delete, select, update
@@ -19,7 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Condition, Event, EventType, Group, Item, ItemType, User, UserStatus
 from app.schemas.imports import ImportResult, RowError
 from app.services import barcode as barcode_svc
-from app.services.queries import group_names, item_type_names
+from app.services import settings as settings_svc
+from app.services.queries import event_filter_query, group_names, item_type_names
 
 USER_HEADERS = ["action", "id", "barcode", "name", "group", "status"]
 ITEM_HEADERS = [
@@ -31,6 +34,17 @@ ITEM_HEADERS = [
     "location",
     "condition",
     "needs_review",
+]
+# History is export-only — no action column, so it can't be mistaken for an importable sheet.
+EVENT_HEADERS = [
+    "id",
+    "created_at",
+    "event_type",
+    "item",
+    "item_barcode",
+    "user",
+    "user_barcode",
+    "note",
 ]
 
 
@@ -177,6 +191,54 @@ async def import_users(session: AsyncSession, content: bytes) -> ImportResult:
 
     await session.commit()
     return result
+
+
+# ---------------------------------------------------------------------------
+# History (export only)
+# ---------------------------------------------------------------------------
+async def events_workbook(
+    session: AsyncSession,
+    *,
+    event_type: EventType | None = None,
+    user_id: uuid.UUID | None = None,
+    item_id: uuid.UUID | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    q: str | None = None,
+) -> bytes:
+    """Event history matching the given filters, most recent first."""
+    tz = ZoneInfo(await settings_svc.app_timezone(session))
+    events = (
+        await session.execute(
+            event_filter_query(
+                event_type=event_type,
+                user_id=user_id,
+                item_id=item_id,
+                date_from=date_from,
+                date_to=date_to,
+                q=q,
+            )
+        )
+    ).all()
+    # Barcodes aren't carried by the shared history query; resolve them in two dict lookups
+    # rather than widening a query the paginated admin view also uses.
+    item_barcodes = dict((await session.execute(select(Item.id, Item.barcode))).all())
+    user_barcodes = dict((await session.execute(select(User.id, User.barcode))).all())
+    rows = [
+        [
+            str(event.id),
+            # openpyxl can't write tz-aware datetimes; store the local wall time instead.
+            event.created_at.astimezone(tz).replace(tzinfo=None),
+            str(event.event_type),
+            item_name,
+            item_barcodes.get(event.item_id, ""),
+            user_name or "",
+            user_barcodes.get(event.user_id, "") if event.user_id else "",
+            event.note or "",
+        ]
+        for event, item_name, user_name in events
+    ]
+    return _workbook_bytes(EVENT_HEADERS, rows)
 
 
 # ---------------------------------------------------------------------------
