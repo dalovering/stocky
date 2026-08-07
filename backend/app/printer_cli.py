@@ -25,6 +25,7 @@ from sqlalchemy import select
 from app.core.config import settings as config
 from app.core.db import async_session_maker
 from app.models import Item
+from app.schemas.printing import PrinterState
 from app.schemas.settings import AppSettings
 from app.services import cards as cards_svc
 from app.services import label_raster as raster
@@ -45,32 +46,20 @@ def _print_outcome(outcome: printer.PrintOutcome) -> None:
 
 async def cmd_status() -> int:
     report = await printer.probe()
+    state, message = printer.describe_probe(report)  # same interpretation as the admin API
     print(f"device:  {config.printer_device} (transport={config.printer_transport})")
-    if report.error is not None:
-        print(f"state:   unreachable — {report.error}")
-        return 1
+    print(f"state:   {state} — {message}")
     status = report.status
-    assert status is not None
-    flags = (
-        "ready"
-        if status.ready
-        else ", ".join(
-            name
-            for name, is_set in (
-                ("lid open", status.lid_open),
-                ("out of paper", status.out_of_paper),
-                ("busy", status.busy),
-            )
-            if is_set
+    if status is not None:
+        roll = f"{status.label_width_mm} x {status.label_length_mm} mm"
+        print(
+            f"roll:    {roll}"
+            + ("  (0 = size tag unreadable)" if not status.label_width_mm else "")
         )
-        or f"error 0x{status.flags:02x}"
-    )
-    print(f"state:   {flags}")
-    roll = f"{status.label_width_mm} x {status.label_length_mm} mm"
-    print(f"roll:    {roll}" + ("  (0 = size tag unreadable)" if not status.label_width_mm else ""))
     if report.battery_percent is not None:
         print(f"battery: {report.battery_percent}%")
-    return 0 if status.ready else 1
+    # Connected (mute) still exits 0: the printer will print, it just can't be asked.
+    return 0 if state in (PrinterState.READY, PrinterState.CONNECTED) else 1
 
 
 async def cmd_test() -> int:

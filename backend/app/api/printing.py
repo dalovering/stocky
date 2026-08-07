@@ -40,24 +40,6 @@ async def _label_geometry(session: AsyncSession) -> LabelGeometry:
     )
 
 
-def _probe_state(status_report: printer_svc.ProbeReport) -> tuple[PrinterState, str]:
-    if status_report.error is not None:
-        return PrinterState.UNREACHABLE, status_report.error
-    status = status_report.status
-    if status is None:
-        # Device opened but answered nothing. It still prints — don't alarm the admin.
-        return PrinterState.CONNECTED, f"Ready to print. {printer_svc.MUTE_WARNING}"
-    if status.out_of_paper:
-        return PrinterState.NO_PAPER, "Load a roll and close the lid."
-    if status.lid_open:
-        return PrinterState.LID_OPEN, "Close the lid."
-    if status.busy:
-        return PrinterState.BUSY, "The printer is printing."
-    if status.flags != 0:
-        return PrinterState.ERROR, f"The printer reported status 0x{status.flags:02x}."
-    return PrinterState.READY, "The printer is ready."
-
-
 @router.get("/printer", response_model=PrinterInfo)
 async def printer_info(
     probe: bool = Query(default=False),
@@ -86,7 +68,7 @@ async def printer_info(
     if not (probe and configured):
         return info
     report = await printer_svc.probe()
-    state, message = _probe_state(report)
+    state, message = printer_svc.describe_probe(report)
     update = {"state": state, "message": message, "battery_percent": report.battery_percent}
     if report.status is not None:
         update["roll_width_mm"] = report.status.label_width_mm or None

@@ -33,6 +33,7 @@ from functools import partial
 import anyio.to_thread
 
 from app.core.config import settings
+from app.schemas.printing import PrinterState
 from app.schemas.settings import AppSettings
 from app.services import label_raster as raster
 from app.services import tspl
@@ -84,6 +85,29 @@ class ProbeReport:
     status: tspl.PrinterStatus | None
     battery_percent: int | None
     error: str | None
+
+
+def describe_probe(report: ProbeReport) -> tuple[PrinterState, str]:
+    """One `ProbeReport` → one (state, message) — the single interpretation of a probe.
+
+    Every surface that shows printer state (admin API, ops CLI) goes through this, so a
+    new state can't reach one and miss the other.
+    """
+    if report.error is not None:
+        return PrinterState.UNREACHABLE, report.error
+    status = report.status
+    if status is None:
+        # Device opened but answered nothing. It still prints — don't alarm the admin.
+        return PrinterState.CONNECTED, f"Ready to print. {MUTE_WARNING}"
+    if status.out_of_paper:
+        return PrinterState.NO_PAPER, "Load a roll and close the lid."
+    if status.lid_open:
+        return PrinterState.LID_OPEN, "Close the lid."
+    if status.busy:
+        return PrinterState.BUSY, "The printer is printing."
+    if status.flags != 0:
+        return PrinterState.ERROR, f"The printer reported status 0x{status.flags:02x}."
+    return PrinterState.READY, "The printer is ready."
 
 
 _job_lock = asyncio.Lock()
