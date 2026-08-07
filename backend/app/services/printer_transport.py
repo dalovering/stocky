@@ -14,6 +14,9 @@ termios setup after open. `transport="auto"` picks by `os.isatty()`.
 Robustness rules (stdlib only — no pyserial):
 - The fd stays non-blocking and all I/O goes through `select()` with deadlines, so a
   powered-off or wedged printer can never hang a worker thread indefinitely.
+- Jobs must end with `flush()`: with a non-blocking fd, write() returning only means the
+  kernel queued the bytes, and usblp discards its in-flight URB on close — without the
+  flush, the tail of the job (the PRINT command) silently never reaches the printer.
 - An exclusive `flock` guards against a second *process* interleaving TSPL into the same
   job (the ops CLI, a future multi-worker uvicorn); in-process serialization is the
   printer service's asyncio lock. TSPL is stateful (CLS…PRINT), so interleaving two jobs
@@ -100,6 +103,32 @@ class Transport:
                 break
             received += chunk
         return received
+
+    def flush(self, timeout: float = 5.0) -> None:
+        """Wait (bounded) until everything written has actually left for the device.
+
+        A non-blocking `os.write` returning means the kernel *accepted* the bytes, not
+        that they reached the printer: usblp keeps the write in an in-flight URB, and
+        close() unlinks it — silently discarding the tail of the job. (Observed on real
+        hardware: a job "succeeded" but the final chunk with the PRINT command was
+        dropped, so the printer did nothing.) usblp only reports writable once no URB is
+        in flight, so waiting for one more writable edge proves delivery. Ttys don't
+        discard on close (serial drivers drain, `closing_wait`), so the same bounded
+        writability wait suffices there — deliberately not `tcdrain`, which has no
+        deadline and can hang a worker thread forever (it deadlocks outright on the
+        test ptys). Call this after the last write of a job, before the fd closes.
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TransportError(
+                    f"Data written to {self.path} never finished sending "
+                    "(device stalled or vanished)."
+                )
+            _, writable, _ = select.select([], [self._fd], [], remaining)
+            if writable:
+                return
 
     def drain_input(self) -> None:
         """Discard any stale bytes (e.g. an unread status frame from an aborted job)."""

@@ -272,6 +272,9 @@ def _run_job(
                 elif not _wait_between_labels(transport, warnings):
                     warnings.append(f"Paper ran out after {printed} of {len(payloads)} labels.")
                     break
+            # Without this, closing the fd can discard the last chunk still in flight —
+            # the job "succeeds" but the printer never receives PRINT and does nothing.
+            transport.flush()
             return PrintOutcome(printed, len(payloads), bytes_sent, warnings)
     except TransportError as exc:
         raise PrinterUnavailable(str(exc)) from exc

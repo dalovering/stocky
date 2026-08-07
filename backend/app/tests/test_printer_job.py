@@ -184,6 +184,33 @@ def test_mute_printer_still_prints_with_a_warning(monkeypatch, geometry) -> None
         responder.close()
 
 
+def test_job_flushes_the_final_chunk_before_close(monkeypatch, geometry) -> None:
+    """The job must force its last chunk out before the fd closes.
+
+    A non-blocking write only queues bytes, and usblp discards its in-flight URB on
+    close — on real hardware this dropped the chunk carrying PRINT, so a job reported
+    "printed 1/1" while the printer did nothing.
+    """
+    from app.services.printer_transport import Transport
+
+    flushes: list[float] = []
+    real_flush = Transport.flush
+
+    def spying_flush(self: Transport, timeout: float = 5.0) -> None:
+        flushes.append(timeout)
+        real_flush(self, timeout)
+
+    monkeypatch.setattr(Transport, "flush", spying_flush)
+    responder = PtyResponder([_frame()])
+    try:
+        _with_device(monkeypatch, responder.path)
+        outcome = printer._run_job([_payload(geometry, 0)], geometry, 2.0, 10, 50.0)
+        assert outcome.printed == 1
+        assert flushes, "the transport closed without flushing the final chunk"
+    finally:
+        responder.close()
+
+
 def test_mute_printer_paces_batches_on_the_clock(monkeypatch, geometry) -> None:
     """With no busy bit to poll, batches are paced by label travel time instead."""
     responder = PtyResponder([])

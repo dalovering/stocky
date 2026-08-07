@@ -14,7 +14,7 @@ import pytest
 
 from app.services import tspl
 from app.services.printer import PrinterUnavailable, _read_status
-from app.services.printer_transport import TransportError, open_transport
+from app.services.printer_transport import Transport, TransportError, open_transport
 
 
 def test_char_device_write_and_lock() -> None:
@@ -38,6 +38,42 @@ def test_exclusive_lock_blocks_second_opener(tmp_path) -> None:
         with pytest.raises(TransportError, match="in use"):
             with open_transport(str(path), "usb"):
                 pass
+
+
+def test_flush_returns_once_writes_drained() -> None:
+    with open_transport("/dev/null", "usb") as transport:
+        transport.write(b"\x00" * 10000)
+        transport.flush(timeout=1.0)  # /dev/null drains instantly
+
+
+def test_flush_times_out_when_the_device_stops_draining() -> None:
+    # A full pipe is a real fd that select() reports unwritable — the same observable
+    # state as a usblp write URB stuck in flight on a wedged printer.
+    read_end, write_end = os.pipe()
+    os.set_blocking(write_end, False)
+    try:
+        while True:
+            try:
+                os.write(write_end, b"\x00" * 65536)
+            except BlockingIOError:
+                break
+        with pytest.raises(TransportError, match="never finished sending"):
+            Transport(write_end, "full-pipe", "usb").flush(timeout=0.2)
+    finally:
+        os.close(read_end)
+        os.close(write_end)
+
+
+def test_flush_serial_returns_promptly() -> None:
+    # Bounded even with nobody reading the far end — tcdrain here would deadlock.
+    controller, follower = os.openpty()
+    try:
+        with open_transport(os.ttyname(follower), "serial") as transport:
+            transport.write(b"CLS\r\n")
+            transport.flush(timeout=2.0)
+    finally:
+        os.close(controller)
+        os.close(follower)
 
 
 def test_pty_auto_detects_serial_and_moves_bytes() -> None:
