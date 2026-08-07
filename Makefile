@@ -117,6 +117,40 @@ reset-admin-pass: ## Set a new admin password (prompts) — recovery when locked
 	cd $(BACKEND) && uv run python -m app.reset_admin_password
 
 # ---------------------------------------------------------------------------
+# Database backup / restore (pg_dump inside the postgres:18 container)
+# ---------------------------------------------------------------------------
+.PHONY: backup
+backup: ## Dump the database to backups/stocky-<timestamp>.dump (compressed pg_dump)
+	@mkdir -p backups
+	@file="backups/stocky-$$(date +%Y%m%d-%H%M%S).dump"; \
+	$(COMPOSE) exec -T db pg_dump -U "$${POSTGRES_USER:-stocky}" -d "$${POSTGRES_DB:-stocky}" -Fc > "$$file" \
+		&& ls -lh "$$file"
+
+# Overwrites the live database with the dump, so it asks first.
+# `make restore FILE=... FORCE=1` skips the prompt for scripted use.
+.PHONY: restore
+restore: ## Restore a dump over the CURRENT database: make restore FILE=backups/stocky-....dump
+	@if [ -z "$(FILE)" ]; then \
+		echo "Usage: make restore FILE=backups/stocky-<timestamp>.dump" >&2; exit 1; \
+	fi
+	@if [ ! -f "$(FILE)" ]; then \
+		echo "No such file: $(FILE)" >&2; exit 1; \
+	fi
+	@if [ "$(FORCE)" != "1" ]; then \
+		echo "This replaces the current database contents with $(FILE)."; \
+		echo "Every user, item, and borrow record added since that dump is gone. There is no undo."; \
+		echo; \
+		printf "Type 'restore' to confirm: "; \
+		read -r reply; \
+		if [ "$$reply" != "restore" ]; then \
+			echo "Aborted — nothing was restored."; \
+			exit 1; \
+		fi; \
+	fi
+	$(COMPOSE) exec -T db pg_restore -U "$${POSTGRES_USER:-stocky}" -d "$${POSTGRES_DB:-stocky}" \
+		--clean --if-exists --no-owner < "$(FILE)"
+
+# ---------------------------------------------------------------------------
 # Local development (no docker) — backend via uv, frontend via npm
 # ---------------------------------------------------------------------------
 .PHONY: install

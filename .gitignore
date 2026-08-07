@@ -14,6 +14,10 @@ tmp/
 *.xlsx
 *.xls
 *.csv
+# Database dumps (`make backup`) hold the same real names, plus the admin password hash.
+backups/
+*.dump
+*.sql
 
 # ---- Python ----
 __pycache__/
