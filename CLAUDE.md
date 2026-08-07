@@ -94,6 +94,7 @@ Discarded) and a user's *current loans* are derived from those events (see
 `backend/app/services/status.py`). Physical *condition* (On order/New/Good/Fair/Worn/Damaged) and a
 *needs-review* flag are stored on the item; *user status* (Active/Inactive) is stored on the user.
 Other services: `cards` (SVG-template tag/ID-card PDFs), `spreadsheet` (xlsx import/export),
+`restore` (rebuild the database from a full-workbook backup: diff plan, then all-or-nothing apply),
 `settings` (app-level config), `admin_auth` (hashed admin password, set up in-app on first launch —
 never in `.env`), `serialize`/`queries` (shared read models + filters), and the **label printer**
 stack — `tspl` (TSPL2 encoding + status frames for the Nelko PM220 thermal printer), `label_raster`
