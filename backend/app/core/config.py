@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # Name of the cookie holding the admin session JWT.
     session_cookie: str = "stocky_admin"
 
+    # Build identity, baked into the backend image at `docker compose build` time via the
+    # Makefile's GIT_* exports (see backend/Dockerfile). Defaults cover bare local runs.
+    git_commit: str = "unknown"
+    git_version: str = "dev"
+
     @property
     def database_url(self) -> str:
         """Async SQLAlchemy URL, assembled from the POSTGRES_* components.

@@ -12,6 +12,10 @@ COMPOSE := docker compose
 BACKEND  := backend
 FRONTEND := frontend
 
+# Build identity for the backend image (surfaces in Admin → Settings → Software update).
+export GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+export GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+
 # Only the makefile(s) — the `include .env` above also lands in MAKEFILE_LIST, and `help` must
 # not scan it for targets.
 HELP_SOURCES := $(filter %Makefile %.mk,$(MAKEFILE_LIST))
@@ -68,6 +72,38 @@ clean: ## Stop the stack and DESTROY its database volume (local development only
 			exit 1; \
 		fi; \
 	fi
+
+# Rebuilding + restarting the stack on a new ref changes the running app and applies DB
+# migrations, so it asks first. `make update REF=... FORCE=1` skips the prompt.
+.PHONY: update
+update: ## Update the running stack to REF (branch, tag, or commit): make update REF=main
+	@if [ -z "$(REF)" ]; then \
+		echo "Usage: make update REF=<branch|tag|commit>   e.g. make update REF=main" >&2; exit 1; \
+	fi
+	git fetch --all --tags --prune
+	@if ! git rev-parse --verify --quiet "$(REF)^{commit}" >/dev/null; then \
+		echo "Unknown ref: $(REF)" >&2; exit 1; \
+	fi
+	@current=$$(git describe --tags --always --dirty); \
+	target=$$(git describe --tags --always "$(REF)^{commit}"); \
+	if [ "$(FORCE)" != "1" ]; then \
+		echo "This updates the running stack: $$current -> $$target"; \
+		echo "Containers are rebuilt and pending DB migrations are applied on start."; \
+		echo "Take a 'make backup' first if you haven't."; \
+		echo; \
+		printf "Type 'update' to confirm: "; \
+		read -r reply; \
+		if [ "$$reply" != "update" ]; then \
+			echo "Aborted — nothing was changed."; \
+			exit 1; \
+		fi; \
+	fi
+	@if git show-ref --verify --quiet "refs/heads/$(REF)"; then \
+		git checkout "$(REF)" && git pull --ff-only; \
+	else \
+		git checkout --detach "$(REF)"; \
+	fi
+	$(COMPOSE) up -d --build
 
 .PHONY: logs
 logs: ## Tail logs from all services

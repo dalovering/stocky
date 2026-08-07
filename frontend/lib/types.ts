@@ -55,6 +55,12 @@ export interface KioskConfig {
   idle_timeout_seconds: number;
 }
 
+/** The backend image's build identity (git describe + short commit). */
+export interface VersionInfo {
+  version: string;
+  commit: string;
+}
+
 export interface AuthStatus {
   authenticated: boolean;
   needs_setup: boolean;

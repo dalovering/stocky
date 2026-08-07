@@ -12,6 +12,12 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY . .
 RUN uv sync --frozen --no-dev
 
+# Build identity, injected by docker-compose build args (see Makefile GIT_* exports). The image
+# has no .git, so this is the only way the running app can know what it was built from.
+ARG GIT_COMMIT=unknown
+ARG GIT_VERSION=dev
+ENV GIT_COMMIT=$GIT_COMMIT GIT_VERSION=$GIT_VERSION
+
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000
 

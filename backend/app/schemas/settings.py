@@ -36,6 +36,13 @@ class AppSettings(BaseModel):
         return value
 
 
+class VersionInfo(BaseModel):
+    """The backend image's build identity (git describe + short commit)."""
+
+    version: str
+    commit: str
+
+
 class AppSettingsUpdate(BaseModel):
     """A partial settings update — only the provided fields are changed."""
 

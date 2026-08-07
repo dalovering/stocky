@@ -70,6 +70,22 @@ restart to do that.
 `JWT_EXPIRE_MINUTES` session limit), and the app time zone (IANA name) used for attendance days
 and spreadsheet export timestamps.
 
+### Updating
+
+**Admin → Settings → Software update** shows the running version and the update targets published
+on GitHub (the `main` branch, release tags, or a pasted commit hash) with the exact commands to
+run. The app never updates itself — updates run from a terminal on the host:
+
+```bash
+make backup                   # always take a backup first
+make update REF=main          # or REF=v0.2.0, or REF=<commit sha>
+```
+
+`make update` fetches, checks out the ref (branches fast-forward; tags/commits check out
+detached), rebuilds the containers, and restarts the stack — pending DB migrations are applied
+automatically on start. To roll back, run `make update REF=<previous ref>`; note migrations are
+not automatically downgraded, so prefer rolling forward.
+
 ### Backup & restore
 
 ```bash

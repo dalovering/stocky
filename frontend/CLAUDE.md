@@ -82,7 +82,9 @@ Next.js 16.2 (App Router) + Radix UI, in TypeScript, managed with **npm**. Read 
   `ADMIN_NAV` in `AppShell.tsx`.
 - **API access.** All backend calls go through the typed client in `lib/api.ts`; it sends cookies
   (`credentials: "include"`) for the admin session. Don't call `fetch` directly from components.
-  Keep `lib/types.ts` in sync with the backend `app/schemas`.
+  Keep `lib/types.ts` in sync with the backend `app/schemas`. The one sanctioned exception is
+  `lib/github.ts` (the settings page's software-update card): GitHub is not our backend — no
+  credentials, and every helper returns null on failure so the card degrades gracefully offline.
 - **Auth.** `components/AuthProvider.tsx` (mounted in `app/layout.tsx`) owns the client's view of
   the admin session: the cookie is httpOnly, so it polls `/api/auth/status` on load, navigation,
   and tab refocus and exposes `{status, refresh}` via `useAuth()` — call `refresh()` after any

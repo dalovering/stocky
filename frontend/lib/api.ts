@@ -19,6 +19,7 @@ import type {
   ScanResponse,
   Timeframe,
   UserDetail,
+  VersionInfo,
   UserRead,
   UserStatus,
 } from "./types";
@@ -232,6 +233,7 @@ export const api = {
   getSettings: () => get<AppSettings>("/api/admin/settings"),
   updateSettings: (patch: Partial<AppSettings>) =>
     request<AppSettings>("/api/admin/settings", { method: "PATCH", body: JSON.stringify(patch) }),
+  version: () => get<VersionInfo>("/api/admin/version"),
 
   // ---- Admin: card/label PDFs ----
   labelsPdf: () => requestBlob("/api/admin/labels.pdf"),
