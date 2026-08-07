@@ -46,17 +46,36 @@ EVENT_HEADERS = [
     "user_barcode",
     "note",
 ]
+# Export-only sheets of the full-database workbook.
+GROUP_HEADERS = ["id", "name", "parent", "created_at"]
+ITEM_TYPE_HEADERS = [
+    "id",
+    "name",
+    "manufacturer",
+    "author",
+    "publish_date",
+    "description",
+    "photo_url",
+    "url",
+    "cost",
+    "upc_isbn",
+]
 
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 def _workbook_bytes(headers: list[str], rows: list[list]) -> bytes:
+    return _multi_sheet_bytes([(None, headers, rows)])
+
+
+def _multi_sheet_bytes(sheets: list[tuple[str | None, list[str], list[list]]]) -> bytes:
     wb = Workbook(write_only=True)
-    ws = wb.create_sheet()
-    ws.append(headers)
-    for row in rows:
-        ws.append(row)
+    for title, headers, rows in sheets:
+        ws = wb.create_sheet(title=title)
+        ws.append(headers)
+        for row in rows:
+            ws.append(row)
     buffer = BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
@@ -107,13 +126,16 @@ def _parse_enum[E](enum_cls: type[E], value: object, field: str) -> E:
 # ---------------------------------------------------------------------------
 # Users
 # ---------------------------------------------------------------------------
-async def users_workbook(session: AsyncSession) -> bytes:
+async def _user_rows(session: AsyncSession) -> list[list]:
     groups = await group_names(session)
     users = (await session.execute(select(User).order_by(User.name))).scalars()
-    rows = [
+    return [
         ["", str(u.id), u.barcode, u.name, groups.get(u.group_id, ""), str(u.status)] for u in users
     ]
-    return _workbook_bytes(USER_HEADERS, rows)
+
+
+async def users_workbook(session: AsyncSession) -> bytes:
+    return _workbook_bytes(USER_HEADERS, await _user_rows(session))
 
 
 async def import_users(session: AsyncSession, content: bytes) -> ImportResult:
@@ -196,8 +218,9 @@ async def import_users(session: AsyncSession, content: bytes) -> ImportResult:
 # ---------------------------------------------------------------------------
 # History (export only)
 # ---------------------------------------------------------------------------
-async def events_workbook(
+async def _event_rows(
     session: AsyncSession,
+    tz: ZoneInfo,
     *,
     event_type: EventType | None = None,
     user_id: uuid.UUID | None = None,
@@ -205,9 +228,7 @@ async def events_workbook(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     q: str | None = None,
-) -> bytes:
-    """Event history matching the given filters, most recent first."""
-    tz = ZoneInfo(await settings_svc.app_timezone(session))
+) -> list[list]:
     events = (
         await session.execute(
             event_filter_query(
@@ -224,7 +245,7 @@ async def events_workbook(
     # rather than widening a query the paginated admin view also uses.
     item_barcodes = dict((await session.execute(select(Item.id, Item.barcode))).all())
     user_barcodes = dict((await session.execute(select(User.id, User.barcode))).all())
-    rows = [
+    return [
         [
             str(event.id),
             # openpyxl can't write tz-aware datetimes; store the local wall time instead.
@@ -238,16 +259,40 @@ async def events_workbook(
         ]
         for event, item_name, user_name in events
     ]
+
+
+async def events_workbook(
+    session: AsyncSession,
+    *,
+    event_type: EventType | None = None,
+    user_id: uuid.UUID | None = None,
+    item_id: uuid.UUID | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    q: str | None = None,
+) -> bytes:
+    """Event history matching the given filters, most recent first."""
+    tz = ZoneInfo(await settings_svc.app_timezone(session))
+    rows = await _event_rows(
+        session,
+        tz,
+        event_type=event_type,
+        user_id=user_id,
+        item_id=item_id,
+        date_from=date_from,
+        date_to=date_to,
+        q=q,
+    )
     return _workbook_bytes(EVENT_HEADERS, rows)
 
 
 # ---------------------------------------------------------------------------
 # Items
 # ---------------------------------------------------------------------------
-async def items_workbook(session: AsyncSession) -> bytes:
+async def _item_rows(session: AsyncSession) -> list[list]:
     types = await item_type_names(session)
     items = (await session.execute(select(Item).order_by(Item.name))).scalars()
-    rows = [
+    return [
         [
             "",
             str(i.id),
@@ -260,7 +305,10 @@ async def items_workbook(session: AsyncSession) -> bytes:
         ]
         for i in items
     ]
-    return _workbook_bytes(ITEM_HEADERS, rows)
+
+
+async def items_workbook(session: AsyncSession) -> bytes:
+    return _workbook_bytes(ITEM_HEADERS, await _item_rows(session))
 
 
 async def import_items(session: AsyncSession, content: bytes) -> ImportResult:
@@ -343,3 +391,59 @@ async def import_items(session: AsyncSession, content: bytes) -> ImportResult:
 
     await session.commit()
     return result
+
+
+# ---------------------------------------------------------------------------
+# Full-database export (export only)
+# ---------------------------------------------------------------------------
+async def full_workbook(session: AsyncSession) -> bytes:
+    """Every table as its own sheet, in one workbook.
+
+    The users/items sheets reuse the import format (with a blank action column) so rows can be
+    pasted straight into an import file. The settings sheet is built from `load_settings()` —
+    i.e. only the keys declared on AppSettings — never from raw Setting rows, so values stored
+    outside the schema (the admin password hash lives in the same table) can never appear.
+    """
+    tz = ZoneInfo(await settings_svc.app_timezone(session))
+
+    groups = list((await session.execute(select(Group).order_by(Group.name))).scalars())
+    names_by_id = {g.id: g.name for g in groups}
+    group_rows = [
+        [
+            str(g.id),
+            g.name,
+            names_by_id.get(g.parent_id, "") if g.parent_id else "",
+            g.created_at.astimezone(tz).replace(tzinfo=None),
+        ]
+        for g in groups
+    ]
+
+    types = (await session.execute(select(ItemType).order_by(ItemType.name))).scalars()
+    type_rows = [
+        [
+            str(t.id),
+            t.name,
+            t.manufacturer or "",
+            t.author or "",
+            t.publish_date,
+            t.description or "",
+            t.photo_url or "",
+            t.url or "",
+            t.cost,
+            t.upc_isbn or "",
+        ]
+        for t in types
+    ]
+
+    settings_doc = (await settings_svc.load_settings(session)).model_dump()
+
+    return _multi_sheet_bytes(
+        [
+            ("users", USER_HEADERS, await _user_rows(session)),
+            ("groups", GROUP_HEADERS, group_rows),
+            ("item_types", ITEM_TYPE_HEADERS, type_rows),
+            ("items", ITEM_HEADERS, await _item_rows(session)),
+            ("history", EVENT_HEADERS, await _event_rows(session, tz)),
+            ("settings", ["key", "value"], [[k, v] for k, v in settings_doc.items()]),
+        ]
+    )
