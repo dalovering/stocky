@@ -133,8 +133,8 @@ db-down: ## Stop the Postgres container used by `make dev`
 # Database / migrations (Alembic, via uv)
 # ---------------------------------------------------------------------------
 .PHONY: migrate
-migrate: ## Apply all pending DB migrations
-	cd $(BACKEND) && uv run alembic upgrade head
+migrate: ## Apply pending DB migrations (a fresh, empty database is bootstrapped + stamped)
+	cd $(BACKEND) && uv run python -m app.migrate
 
 .PHONY: migrate-create
 migrate-create: ## Autogenerate a migration: make migrate-create m="message"

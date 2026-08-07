@@ -65,7 +65,7 @@ conventions in a subtree, update that subtree's CLAUDE.md in the same commit.
 make init-env               # generate .env with openssl-random secrets (JWT signing key, DB password)
 make run                    # docker-compose: build + start postgres 18 + backend + frontend
 make start                  # docker-compose start WITHOUT rebuilding (fast restart after `make build`)
-make migrate                # apply DB migrations
+make migrate                # apply DB migrations (an empty database is bootstrapped + stamped)
 make seed                   # load demo data so the kiosk works immediately
 make reset-admin-pass       # set a new admin password (prompts; recovery if locked out of /admin)
 make down                   # stop everything
