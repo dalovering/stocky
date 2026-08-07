@@ -236,6 +236,7 @@ export default function UsersPage() {
         </FilterBar>
         <Flex gap="2" wrap="wrap">
           <ImportExportButtons
+            entity="users"
             exportName="stocky-users.xlsx"
             onExport={api.usersXlsx}
             onImport={api.importUsers}

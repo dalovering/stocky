@@ -7,18 +7,22 @@ import { DownloadIcon, UploadIcon } from "@radix-ui/react-icons";
 import { ApiError, downloadBlob } from "@/lib/api";
 import type { ImportResult } from "@/lib/types";
 
+import { ImportHelpDialog } from "@/components/ImportHelpDialog";
+
 /**
- * The "Download .xlsx" + "Import" button pair (with a hidden file input) shared by the users and
- * inventory toolbars. Handles the download, the file pick, and error reporting; the page supplies
- * the entity-specific export/import calls and reacts to the result.
+ * The "Download .xlsx" + "Import" button pair (with a hidden file input and a help dialog)
+ * shared by the users and inventory toolbars. Handles the download, the file pick, and error
+ * reporting; the page supplies the entity-specific export/import calls and reacts to the result.
  */
 export function ImportExportButtons({
+  entity,
   exportName,
   onExport,
   onImport,
   onImported,
   onError,
 }: {
+  entity: "users" | "items";
   exportName: string;
   onExport: () => Promise<Blob>;
   onImport: (file: File) => Promise<ImportResult>;
@@ -52,6 +56,7 @@ export function ImportExportButtons({
       <Button variant="soft" color="gray" onClick={() => input.current?.click()}>
         <UploadIcon /> Import
       </Button>
+      <ImportHelpDialog entity={entity} />
       <input ref={input} type="file" accept=".xlsx" hidden onChange={onFile} />
     </>
   );
