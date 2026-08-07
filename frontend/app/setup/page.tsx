@@ -5,10 +5,12 @@ import { useEffect, useState } from "react";
 import { Button, Callout, Card, Flex, Heading, Text, TextField } from "@radix-ui/themes";
 
 import { AppShell } from "@/components/AppShell";
+import { useAuth } from "@/components/AuthProvider";
 import { api, ApiError } from "@/lib/api";
 
 export default function SetupPage() {
   const router = useRouter();
+  const { refresh } = useAuth();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +33,7 @@ export default function SetupPage() {
     setBusy(true);
     try {
       await api.setupAdmin(password);
+      await refresh(); // setup also signs the session in — update the shared auth state
       router.push("/admin");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Setup failed.");
