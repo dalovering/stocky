@@ -248,7 +248,7 @@ function LabelPrinterCard({
         />
         <NumberSettingField
           label="Print darkness (0–15)"
-          help="TSPL density. 10 suits Nelko stock; raise it if barcodes print faint."
+          help="TSPL density, sent with every job. PM220 firmware ignores it (darkness is fixed; SPEED only changes feed rate) — kept for TSPL printers that honor it."
           min={0}
           max={15}
           value={settings?.label_density ?? null}

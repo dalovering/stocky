@@ -90,6 +90,11 @@ alembic/               # migrations (env.py wires the async engine + SQLModel me
 - **Firmware quirks:** native TSPL `BARCODE`/`QRCODE` are broken (rasterize instead); no
   print-completion ack (busy-bit polling only); BITMAP row padding bits print black (keep padding
   columns white); `PRINT N` repeats one bitmap, so N different labels = N blocks in one job.
+  **Print darkness is fixed** (hardware-verified 2026-08): `DENSITY` 0–15 is parsed but ignored
+  (0 and 15 print identically), `SPEED` is honored for feed rate (clamped near the ~2.4 ips
+  rating) but heat-compensated so darkness barely moves, and even the vendor app's own 1F/2F/3F
+  density levels look the same on paper. Don't re-debug this; the `label_density` setting is kept
+  for TSPL printers that do honor `DENSITY`.
 
 ## Migrations (Alembic)
 
