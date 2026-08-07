@@ -9,6 +9,7 @@ openpyxl is pure-Python (Pi-friendly); we stream with write_only/read_only to ke
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime
 from io import BytesIO
@@ -25,7 +26,11 @@ from app.services import events as events_svc
 from app.services import settings as settings_svc
 from app.services.queries import event_filter_query, group_names, item_type_names
 
-USER_HEADERS = ["action", "id", "barcode", "name", "group", "status"]
+# The trailing columns beyond the editable basics exist so a full-database export is a
+# *faithful backup*: services/restore.py rebuilds rows from these sheets, and a field that
+# isn't exported is a field a restore would lose. Import reads columns by header name and
+# ignores ones it doesn't know, so the extra columns don't disturb the import round-trip.
+USER_HEADERS = ["action", "id", "barcode", "name", "group", "status", "created_at"]
 ITEM_HEADERS = [
     "action",
     "id",
@@ -35,6 +40,11 @@ ITEM_HEADERS = [
     "location",
     "condition",
     "needs_review",
+    "photo_url",
+    "description",
+    "purchase_price",
+    "purchase_date",
+    "created_at",
 ]
 # History is export-only — no action column, so it can't be mistaken for an importable sheet.
 EVENT_HEADERS = [
@@ -48,7 +58,7 @@ EVENT_HEADERS = [
     "note",
 ]
 # Export-only sheets of the full-database workbook.
-GROUP_HEADERS = ["id", "name", "parent", "semester_start", "created_at"]
+GROUP_HEADERS = ["id", "name", "parent", "semester_start", "created_at", "permissions"]
 ITEM_TYPE_HEADERS = [
     "id",
     "name",
@@ -60,6 +70,7 @@ ITEM_TYPE_HEADERS = [
     "url",
     "cost",
     "upc_isbn",
+    "created_at",
 ]
 
 
@@ -127,16 +138,26 @@ def _parse_enum[E](enum_cls: type[E], value: object, field: str) -> E:
 # ---------------------------------------------------------------------------
 # Users
 # ---------------------------------------------------------------------------
-async def _user_rows(session: AsyncSession) -> list[list]:
+async def _user_rows(session: AsyncSession, tz: ZoneInfo) -> list[list]:
     groups = await group_names(session)
     users = (await session.execute(select(User).order_by(User.name))).scalars()
     return [
-        ["", str(u.id), u.barcode, u.name, groups.get(u.group_id, ""), str(u.status)] for u in users
+        [
+            "",
+            str(u.id),
+            u.barcode,
+            u.name,
+            groups.get(u.group_id, ""),
+            str(u.status),
+            u.created_at.astimezone(tz).replace(tzinfo=None),
+        ]
+        for u in users
     ]
 
 
 async def users_workbook(session: AsyncSession) -> bytes:
-    return _workbook_bytes(USER_HEADERS, await _user_rows(session))
+    tz = ZoneInfo(await settings_svc.app_timezone(session))
+    return _workbook_bytes(USER_HEADERS, await _user_rows(session, tz))
 
 
 async def import_users(session: AsyncSession, content: bytes) -> ImportResult:
@@ -288,7 +309,7 @@ async def events_workbook(
 # ---------------------------------------------------------------------------
 # Items
 # ---------------------------------------------------------------------------
-async def _item_rows(session: AsyncSession) -> list[list]:
+async def _item_rows(session: AsyncSession, tz: ZoneInfo) -> list[list]:
     types = await item_type_names(session)
     items = (await session.execute(select(Item).order_by(Item.name))).scalars()
     return [
@@ -301,13 +322,19 @@ async def _item_rows(session: AsyncSession) -> list[list]:
             i.location or "",
             str(i.condition),
             i.needs_review,
+            i.photo_url or "",
+            i.description or "",
+            i.purchase_price,
+            i.purchase_date,
+            i.created_at.astimezone(tz).replace(tzinfo=None),
         ]
         for i in items
     ]
 
 
 async def items_workbook(session: AsyncSession) -> bytes:
-    return _workbook_bytes(ITEM_HEADERS, await _item_rows(session))
+    tz = ZoneInfo(await settings_svc.app_timezone(session))
+    return _workbook_bytes(ITEM_HEADERS, await _item_rows(session, tz))
 
 
 async def import_items(session: AsyncSession, content: bytes) -> ImportResult:
@@ -414,6 +441,7 @@ async def full_workbook(session: AsyncSession) -> bytes:
             names_by_id.get(g.parent_id, "") if g.parent_id else "",
             g.semester_start,
             g.created_at.astimezone(tz).replace(tzinfo=None),
+            json.dumps(g.permissions) if g.permissions else "",
         ]
         for g in groups
     ]
@@ -431,6 +459,7 @@ async def full_workbook(session: AsyncSession) -> bytes:
             t.url or "",
             t.cost,
             t.upc_isbn or "",
+            t.created_at.astimezone(tz).replace(tzinfo=None),
         ]
         for t in types
     ]
@@ -439,10 +468,10 @@ async def full_workbook(session: AsyncSession) -> bytes:
 
     return _multi_sheet_bytes(
         [
-            ("users", USER_HEADERS, await _user_rows(session)),
+            ("users", USER_HEADERS, await _user_rows(session, tz)),
             ("groups", GROUP_HEADERS, group_rows),
             ("item_types", ITEM_TYPE_HEADERS, type_rows),
-            ("items", ITEM_HEADERS, await _item_rows(session)),
+            ("items", ITEM_HEADERS, await _item_rows(session, tz)),
             ("history", EVENT_HEADERS, await _event_rows(session, tz)),
             ("settings", ["key", "value"], [[k, v] for k, v in settings_doc.items()]),
         ]
